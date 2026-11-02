@@ -11,7 +11,7 @@ export function ProjectCard({ project }: { project: Project }) {
   const s = projectStats(project, state.tasks);
   const members = project.memberIds.map((id) => memberById(state, id)!).filter(Boolean);
   return (
-    <Link to="/projects/$projectId" params={{ projectId: project.id }} className="group flex flex-col rounded-2xl border bg-card card-hover p-4 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop">
+    <Link to="/projects/$projectId" params={{ projectId: project.id }} className="group flex flex-col rounded-2xl border border-[#E8E3D8] bg-[#FAF8F5] card-hover p-4 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-pop">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-primary-foreground", colorClass(project.color))}>{project.name[0]}</span>
@@ -26,7 +26,7 @@ export function ProjectCard({ project }: { project: Project }) {
         <AvatarStack members={members} />
         <HealthBadge value={s.health} />
       </div>
-      <p className="mt-3 border-t pt-2.5 text-[11px] text-muted-foreground">{format(parseISO(project.startDate), "MMM d")} → <span className="font-medium text-foreground">{format(parseISO(project.deadline), "MMM d, yyyy")}</span></p>
+      <p className="mt-3 border-t border-[#E8E3D8] pt-2.5 text-[11px] text-muted-foreground">{format(parseISO(project.startDate), "MMM d")} → <span className="font-medium text-foreground">{format(parseISO(project.deadline), "MMM d, yyyy")}</span></p>
     </Link>
   );
 }
@@ -35,7 +35,7 @@ export function ProjectRow({ project }: { project: Project }) {
   const { state } = useStore();
   const s = projectStats(project, state.tasks);
   return (
-    <Link to="/projects/$projectId" params={{ projectId: project.id }} className="grid grid-cols-[1fr_auto] items-center gap-4 border-b px-4 py-3 last:border-0 hover:bg-muted/40 md:grid-cols-[2fr_1fr_140px_100px_110px]">
+    <Link to="/projects/$projectId" params={{ projectId: project.id }} className="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-[#E8E3D8] px-4 py-3 last:border-0 hover:bg-[#F2EFE9]/60 md:grid-cols-[2fr_1fr_140px_100px_110px]">
       <span className="flex min-w-0 items-center gap-2.5"><span className={cn("size-2.5 shrink-0 rounded-sm", colorClass(project.color))} /><span className="truncate text-sm font-medium">{project.name}</span></span>
       <span className="hidden md:block"><AvatarStack members={project.memberIds.map((id) => memberById(state, id)!).filter(Boolean)} /></span>
       <span className="hidden items-center gap-2 md:flex"><Bar value={s.progress} tone={project.color} /><span className="w-9 text-xs tabular-nums text-muted-foreground">{s.progress}%</span></span>

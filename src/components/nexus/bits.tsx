@@ -78,8 +78,8 @@ export function DueLabel({ date, done }: { date: string; done?: boolean }) {
 
 export function Panel({ title, action, children, className }: { title?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("rounded-2xl border bg-card shadow-card", className)}>
-      {title && <header className="flex items-center justify-between gap-2 border-b px-5 py-3.5"><h2 className="text-[15px] font-semibold">{title}</h2>{action}</header>}
+    <section className={cn("rounded-2xl border border-[#E8E3D8] bg-[#FAF8F5] shadow-card", className)}>
+      {title && <header className="flex items-center justify-between gap-2 border-b border-[#E8E3D8] px-5 py-3.5"><h2 className="text-[15px] font-semibold">{title}</h2>{action}</header>}
       {children}
     </section>
   );

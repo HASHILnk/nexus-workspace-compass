@@ -8,7 +8,6 @@ import { toMember, toProject, toTask } from "@/lib/db-map";
 import { daysUntil, isOverdue, projectStats } from "@/lib/selectors";
 import { canManage, ROLE_LABEL } from "@/lib/permissions";
 import { createTask, proposeChanges, proposePlan, resolveContext, updateTask, type OpsContext } from "./workspace-ops";
-import { createLovableAiGatewayRunIdFetch, getLovableAiGatewayRunId, withLovableAiGatewayRunIdHeader } from "./run-id.server";
 
 const MODEL = "openai/gpt-6-astra";
 const json = (status: number, message: string) => Response.json({ error: message }, { status });
@@ -84,7 +83,7 @@ function createGeminiFetch() {
   };
 }
 
-function userClient(token: string) {
+export function userClient(token: string) {
   const url = process.env["SUPABASE_URL"]!;
   const key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
   return createClient<Database>(url, key, {
@@ -346,10 +345,30 @@ export async function handleChat(request: Request): Promise<Response> {
   }
 
   const apiKey = userKey.trim();
+  const isOpenRouter = userProvider === "openrouter" || apiKey.startsWith("sk-or-");
   const isGeminiFormat = apiKey.startsWith("AQ.") || apiKey.startsWith("AIza");
-  const isGemini = userProvider === "gemini" || isGeminiFormat || (!userProvider && !apiKey.startsWith("sk-"));
-  const isLovable = false;
-  const selectedModel = userModel || (isGemini ? "gemini-2.5-flash" : "gpt-4o");
+  const isGemini =
+    userProvider === "gemini" ||
+    (!isOpenRouter && (isGeminiFormat || (!userProvider && !apiKey.startsWith("sk-"))));
+
+  let selectedModel = userModel;
+  if (isOpenRouter) {
+    if (
+      !selectedModel ||
+      selectedModel.includes("llama-3.3-70b-instruct:free") ||
+      selectedModel.includes("gemini-2.0-flash-exp:free") ||
+      selectedModel.includes("deepseek-r1:free") ||
+      selectedModel.includes("deepseek-chat:free") ||
+      selectedModel.includes("qwen-2.5-72b-instruct:free") ||
+      selectedModel.includes("mistral-small-24b-instruct-2501:free")
+    ) {
+      selectedModel = "openrouter/free";
+    }
+  } else if (isGemini) {
+    if (!selectedModel) selectedModel = "gemini-2.5-flash";
+  } else {
+    if (!selectedModel) selectedModel = "gpt-4o";
+  }
 
   const ctx = await resolveContext(sb, userId, threadId);
   let w: Awaited<ReturnType<typeof loadWorkspace>>;
@@ -373,24 +392,24 @@ export async function handleChat(request: Request): Promise<Response> {
 
   let provider;
   let modelInstance;
-  let runIdFetch: ReturnType<typeof createLovableAiGatewayRunIdFetch> | undefined;
 
-  if (isGemini) {
+  if (isOpenRouter) {
+    provider = createOpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey,
+      headers: {
+        "HTTP-Referer": "https://nexus-workspace.app",
+        "X-Title": "Nexus Workspace Compass",
+      },
+    });
+    modelInstance = provider.chat(selectedModel);
+  } else if (isGemini) {
     provider = createOpenAI({
       baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
       apiKey,
       fetch: createGeminiFetch(),
     });
     modelInstance = provider.chat(selectedModel);
-  } else if (isLovable) {
-    runIdFetch = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(request));
-    provider = createOpenAI({
-      baseURL: "https://ai.gateway.lovable.dev/v1",
-      apiKey,
-      headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-      fetch: runIdFetch.fetch,
-    });
-    modelInstance = provider.responses(MODEL);
   } else {
     provider = createOpenAI({ apiKey });
     modelInstance = provider.chat(selectedModel);
@@ -404,13 +423,6 @@ export async function handleChat(request: Request): Promise<Response> {
     stopWhen: stepCountIs(50),
     abortSignal: request.signal,
     maxRetries: 2,
-    ...(isLovable
-      ? {
-          providerOptions: {
-            openai: { forceReasoning: true, reasoningEffort: "medium", reasoningSummary: "auto", store: false, include: ["reasoning.encrypted_content"] },
-          },
-        }
-      : {}),
   });
 
   const response = result.toUIMessageStreamResponse({
@@ -418,28 +430,100 @@ export async function handleChat(request: Request): Promise<Response> {
     generateMessageId: () => crypto.randomUUID(),
     sendReasoning: true,
     onError: (e) => {
-      const err = e as { statusCode?: number; message?: string; lastError?: { statusCode?: number; message?: string } };
-      console.error("[nexus-ai] stream error", err?.statusCode, err?.message);
-      const msg = (err?.message || "").toLowerCase();
-      const is429 =
-        err?.statusCode === 429 ||
-        err?.lastError?.statusCode === 429 ||
-        msg.includes("429") ||
-        msg.includes("too many requests");
+      const err = e as {
+        statusCode?: number;
+        message?: string;
+        lastError?: { statusCode?: number; message?: string };
+      };
+      console.error("[nexus-ai] stream error", {
+        provider: isOpenRouter ? "openrouter" : isGemini ? "gemini" : "openai",
+        model: selectedModel,
+        statusCode: err?.statusCode ?? err?.lastError?.statusCode,
+        message: err?.message,
+      });
 
-      if (err?.statusCode === 402) {
+      const msg = (err?.message || "").toLowerCase();
+      const code = err?.statusCode ?? err?.lastError?.statusCode;
+      const is429 =
+        code === 429 ||
+        msg.includes("429") ||
+        msg.includes("too many requests") ||
+        msg.includes("rate limit");
+      const isAuthError =
+        code === 401 ||
+        code === 403 ||
+        msg.includes("401") ||
+        msg.includes("403") ||
+        msg.includes("unauthorized") ||
+        msg.includes("invalid api key") ||
+        msg.includes("user not found") ||
+        msg.includes("access denied");
+
+      if (code === 402 || msg.includes("402") || msg.includes("credits") || msg.includes("payment")) {
+        if (isOpenRouter) {
+          return "Your OpenRouter account requires credits for this model. Switch to 'OpenRouter Free Router' in AI configuration for 100% free usage.";
+        }
         return "Nexus AI is out of credits. A workspace owner can add more in Settings → Plans & credits.";
       }
-      if (is429) {
-        if (!userKey) {
-          return "The shared workspace Gemini key has hit Google's rate limit (429 Too Many Requests). Click 'Configure AI' at the top to connect your own free Gemini API key and chat without interruption.";
+
+      if (isAuthError) {
+        if (isOpenRouter) {
+          return "Invalid OpenRouter API key. Please check your token in 'Configure AI' (OpenRouter keys start with 'sk-or-v1-').";
         }
-        return "You have reached your API rate limit (429 Too Many Requests). Please wait a moment before sending your next message, or switch to Gemini 2.0 Flash in AI configuration.";
+        if (isGemini) {
+          return "Invalid Google Gemini API key. Please check your key in 'Configure AI'.";
+        }
+        return "Access denied. Please verify your API key in 'Configure AI'.";
       }
-      if (err?.statusCode === 403 || msg.includes("403") || msg.includes("denied")) {
-        return err.message ?? "Access to the AI model was denied. Please verify your API key.";
+
+      if (is429) {
+        if (isOpenRouter) {
+          return "OpenRouter free model rate limit reached. Please wait 10-20 seconds or switch to another free model in AI configuration.";
+        }
+        if (isGemini) {
+          if (!userKey) {
+            return "The shared workspace Gemini key has hit Google's rate limit (429 Too Many Requests). Click 'Configure AI' at the top to connect your own free Gemini API key and chat without interruption.";
+          }
+          return "You have reached your Gemini API rate limit (429 Too Many Requests). Please wait a moment, or switch to Gemini 2.5 Flash in AI configuration.";
+        }
+        return "You have reached your API rate limit (429 Too Many Requests). Please wait a moment.";
       }
-      return "Nexus AI hit an error answering that. Please try again.";
+
+      if (
+        code === 404 ||
+        msg.includes("model not found") ||
+        msg.includes("no longer available") ||
+        msg.includes("not supported")
+      ) {
+        if (isOpenRouter) {
+          return `The model '${selectedModel}' was not found or is currently offline on OpenRouter. Please select 'OpenRouter Free Router' in AI configuration.`;
+        }
+        if (isGemini) {
+          return "This model is no longer available from Google Gemini. Please switch to Gemini 2.5 Flash in AI configuration.";
+        }
+        return `The model '${selectedModel}' was not found. Please check your AI configuration.`;
+      }
+
+      if (
+        code === 503 ||
+        code === 502 ||
+        msg.includes("503") ||
+        msg.includes("502") ||
+        msg.includes("high demand") ||
+        msg.includes("overloaded") ||
+        msg.includes("unavailable") ||
+        msg.includes("spikes in demand")
+      ) {
+        if (isOpenRouter) {
+          return "OpenRouter upstream provider is experiencing high demand. Please try again shortly or switch models in AI configuration.";
+        }
+        if (isGemini) {
+          return "Google Gemini is currently experiencing high demand & capacity limits for this model (503 Service Unavailable). Click the model badge at the top to switch to Gemini 2.5 Flash for instant 2-second responses.";
+        }
+        return "The AI service is temporarily unavailable (503). Please try again shortly.";
+      }
+
+      return err?.message ? `Nexus AI error: ${err.message}` : "Nexus AI hit an error answering that. Please try again.";
     },
     onFinish: async ({ responseMessage }) => {
       const { error } = await sb.from("ai_messages").upsert({ thread_id: threadId, user_id: userId, ui_id: responseMessage.id, message: responseMessage as unknown as Json }, { onConflict: "thread_id,ui_id" });
@@ -447,5 +531,5 @@ export async function handleChat(request: Request): Promise<Response> {
       await sb.from("ai_threads").update({ updated_at: new Date().toISOString() }).eq("id", threadId);
     },
   });
-  return runIdFetch ? withLovableAiGatewayRunIdHeader(response, runIdFetch) : response;
+  return response;
 }

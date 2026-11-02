@@ -40,9 +40,12 @@ export function TaskRows({ ids }: { ids: string[] }) {
 export function SavedTaskCard({ task }: { task: { id: string; title: string; assigneeId: string | null; dueDate: string; projectId: string } }) {
   const { state, ui } = useStore();
   return (
-    <button onClick={() => ui.setOpenTaskId(task.id)} className="flex w-full items-center gap-2 rounded-lg border border-success/30 bg-success-soft px-3 py-2 text-left text-xs">
-      <CheckCircle2 className="size-4 shrink-0 text-success" />
-      <span className="min-w-0 flex-1"><span className="block truncate font-medium">{task.title}</span><span className="text-muted-foreground">Saved · {projectById(state, task.projectId)?.name} · {memberById(state, task.assigneeId)?.name ?? "Unassigned"} · due {task.dueDate}</span></span>
+    <button onClick={() => ui.setOpenTaskId(task.id)} className="flex w-full items-center gap-2 rounded-xl border border-[#EAEAEA] bg-transparent px-3.5 py-2 text-left text-xs hover:bg-[#FAFAFA] transition-colors cursor-pointer">
+      <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-[#111111]">{task.title}</span>
+        <span className="text-[11px] text-[#777777]">Saved · {projectById(state, task.projectId)?.name} · {memberById(state, task.assigneeId)?.name ?? "Unassigned"} · due {task.dueDate}</span>
+      </span>
     </button>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import {
-  Bell, Bot, Calendar, ChevronsUpDown, FileText, FolderKanban, GanttChart, LayoutGrid, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Plus, Search, Settings, Star, Clock, Users, BarChart3, LogOut, Hexagon,
+  AudioLines, Bell, Bot, Calendar, ChevronsUpDown, FileText, FolderKanban, GanttChart, LayoutGrid, ListChecks, Menu, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Plus, Search, Settings, Star, Clock, Users, BarChart3, LogOut, Hexagon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -20,6 +20,7 @@ import { AiPanel } from "./ai-panel";
 import { TaskDrawer } from "./task-drawer";
 import { CreateProjectDialog, CreateTaskDialog } from "./dialogs";
 import { AiConfigHeaderButton, AiConfigDialog } from "./ai-config-dialog";
+import { VoiceAgent } from "./voice-agent";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -36,69 +37,201 @@ const NAV = [
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
+function SidebarNav({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const { state, ui } = useStore();
   const path = useRouterState({ select: (r) => r.location.pathname });
   const me = memberById(state, state.meId);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const signOut = async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); void navigate({ to: "/auth", search: { redirect: undefined }, replace: true }); };
+  const signOut = async () => {
+    await qc.cancelQueries();
+    qc.clear();
+    await supabase.auth.signOut();
+    void navigate({ to: "/auth", search: { redirect: undefined }, replace: true });
+  };
   const unread = state.notifications.filter((n) => !n.read).length;
   const favs = state.projects.slice(0, 3);
   const recent = state.projects.slice(3, 6);
   const isActive = (to: string) => (to === "/" ? path === "/" : path.startsWith(to));
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col select-none bg-[#FAF8F5]">
+      {/* Workspace Branding / Switcher */}
       <div className={cn("flex items-center gap-2 px-3 pb-2 pt-3", collapsed && "justify-center px-2")}>
         <DropdownMenu>
-          <DropdownMenuTrigger className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1.5 text-left hover:bg-sidebar-accent", collapsed && "flex-none")}>
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar"><Hexagon className="size-4" /></span>
-            {!collapsed && <><span className="min-w-0 flex-1"><span className="block text-sm font-bold tracking-tight">NEXUS</span><span className="block truncate text-[11px] text-sidebar-foreground/60">Acme Inc. workspace</span></span><ChevronsUpDown className="size-3.5 text-muted-foreground" /></>}
+          <DropdownMenuTrigger
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2 rounded-lg p-1.5 text-left hover:bg-[#EFECE5] transition-colors cursor-pointer",
+              collapsed && "flex-none p-1"
+            )}
+          >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#111111] text-white">
+              <Hexagon className="size-4 stroke-[2.5]" />
+            </span>
+            {!collapsed && (
+              <>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold tracking-tight text-[#111111]">NEXUS</span>
+                  <span className="block truncate text-[11px] text-[#777777]">Acme Inc. workspace</span>
+                </span>
+                <ChevronsUpDown className="size-3.5 text-[#888888]" />
+              </>
+            )}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56"><DropdownMenuLabel>Workspaces</DropdownMenuLabel><DropdownMenuItem>Acme Inc. ✓</DropdownMenuItem><DropdownMenuItem onClick={() => toast.info("Multiple workspaces are coming soon.")}>+ Create workspace</DropdownMenuItem></DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className={cn("px-3 pb-2", collapsed && "px-2")}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild><Button size="sm" className={cn("w-full", collapsed && "size-9 p-0")} aria-label="New"><Plus className="size-4" />{!collapsed && "New"}</Button></DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuItem onClick={() => ui.setCreateTaskOpen({})}><ListChecks className="size-4" />New task</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => ui.setCreateProjectOpen(true)}><FolderKanban className="size-4" />New project</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Document editing is coming soon.")}><FileText className="size-4" />New document</DropdownMenuItem>
+          <DropdownMenuContent align="start" className="w-56 bg-[#FAF8F5] border border-[#E8E3D8]">
+            <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+            <DropdownMenuItem>Acme Inc. ✓</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Multiple workspaces are coming soon.")}>
+              + Create workspace
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3" aria-label="Main">
-        {NAV.map((n) => (
-          <Link key={n.to} to={n.to} onClick={onNavigate} title={collapsed ? n.label : undefined}
-            className={cn("flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground", isActive(n.to) && "bg-sidebar-accent font-semibold text-sidebar-foreground", collapsed && "justify-center px-0")}>
-            <n.icon className={cn("size-4 shrink-0", isActive(n.to) && "text-sidebar-primary")} />
-            {!collapsed && <span className="flex-1 truncate">{n.label}</span>}
-            {!collapsed && n.to === "/notifications" && unread > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{unread}</span>}
-          </Link>
-        ))}
-        {!collapsed && ([{ label: "Favorites", list: favs, Icon: Star }, { label: "Recent Projects", list: recent, Icon: Clock }]).map(({ label, list, Icon }) => (
-          <div key={label} className="pt-4">
-            <p className="flex items-center gap-1.5 px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50"><Icon className="size-3" />{label}</p>
-            {list.map((p) => (
-              <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }} onClick={onNavigate} className={cn("flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground", path === `/projects/${p.id}` && "bg-sidebar-accent text-sidebar-foreground")}>
-                <span className={cn("size-2 rounded-sm", colorClass(p.color))} /><span className="truncate">{p.name}</span>
+
+      {/* "+ New" Action Button */}
+      <div className={cn("px-3 pb-2", collapsed && "px-2")}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              className={cn(
+                "w-full bg-[#111111] text-white hover:bg-[#222222] text-xs font-medium h-9 rounded-lg gap-2 cursor-pointer shadow-2xs",
+                collapsed && "size-9 p-0"
+              )}
+              aria-label="New"
+            >
+              <Plus className="size-4" />
+              {!collapsed && <span>New</span>}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48 bg-[#FAF8F5] border border-[#E8E3D8]">
+            <DropdownMenuItem onClick={() => ui.setCreateTaskOpen({})}>
+              <ListChecks className="size-4 mr-2" />New task
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => ui.setCreateProjectOpen(true)}>
+              <FolderKanban className="size-4 mr-2" />New project
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Document editing is coming soon.")}>
+              <FileText className="size-4 mr-2" />New document
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Main Nav Items */}
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden" aria-label="Main">
+        {NAV.map((n) => {
+          const active = isActive(n.to);
+          return (
+            <Link
+              key={n.to}
+              to={n.to}
+              onClick={onNavigate}
+              title={collapsed ? n.label : undefined}
+              className={cn(
+                "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                active
+                  ? "bg-[#EAE5D9] font-semibold text-[#111111]"
+                  : "text-[#666666] hover:bg-[#F2EFE9] hover:text-[#111111]",
+                collapsed && "justify-center px-0"
+              )}
+            >
+              <n.icon className={cn("size-4 shrink-0", active ? "text-[#111111]" : "text-[#777777]")} />
+              {!collapsed && <span className="flex-1 truncate">{n.label}</span>}
+              {!collapsed && n.to === "/notifications" && unread > 0 && (
+                <span className="rounded-full bg-emerald-600 px-1.5 text-[10px] font-semibold text-white">
+                  {unread}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+
+        {/* Favorites */}
+        {!collapsed && favs.length > 0 && (
+          <div className="pt-4">
+            <p className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#888888]">
+              <Star className="size-3" />
+              <span>Favorites</span>
+            </p>
+            {favs.map((p) => (
+              <Link
+                key={p.id}
+                to="/projects/$projectId"
+                params={{ projectId: p.id }}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                  path === `/projects/${p.id}`
+                    ? "bg-[#F0F1F3] font-semibold text-[#111111]"
+                    : "text-[#666666] hover:bg-[#F8F9FA] hover:text-[#111111]"
+                )}
+              >
+                <span className={cn("size-2 rounded-full shrink-0", colorClass(p.color))} />
+                <span className="truncate">{p.name}</span>
               </Link>
             ))}
           </div>
-        ))}
+        )}
+
+        {/* Recent Projects */}
+        {!collapsed && recent.length > 0 && (
+          <div className="pt-3">
+            <p className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[#888888]">
+              <Clock className="size-3" />
+              <span>Recent Projects</span>
+            </p>
+            {recent.map((p) => (
+              <Link
+                key={p.id}
+                to="/projects/$projectId"
+                params={{ projectId: p.id }}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors",
+                  path === `/projects/${p.id}`
+                    ? "bg-[#EAE5D9] font-semibold text-[#111111]"
+                    : "text-[#666666] hover:bg-[#F2EFE9] hover:text-[#111111]"
+                )}
+              >
+                <span className={cn("size-2 rounded-full shrink-0", colorClass(p.color))} />
+                <span className="truncate">{p.name}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </nav>
-      <div className="border-t border-sidebar-border p-2">
+
+      {/* User Profile Footer */}
+      <div className="border-t border-[#E8E3D8] p-2">
         <DropdownMenu>
-          <DropdownMenuTrigger className={cn("flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-sidebar-accent", collapsed && "justify-center")}>
+          <DropdownMenuTrigger
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-[#EFECE5] transition-colors cursor-pointer",
+              collapsed && "justify-center"
+            )}
+          >
             <MemberAvatar member={me} size="md" />
-            {!collapsed && <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{me?.name}</span><span className="block truncate text-[11px] text-sidebar-foreground/60">{me?.role} · {state.myRole ? ROLE_LABEL[state.myRole] : "Member"}</span></span>}
+            {!collapsed && (
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-[#111111]">{me?.name}</span>
+                <span className="block truncate text-[11px] text-[#777777]">
+                  {me?.role} · {state.myRole ? ROLE_LABEL[state.myRole] : "Member"}
+                </span>
+              </span>
+            )}
+            {!collapsed && <ChevronsUpDown className="size-3.5 text-[#888888]" />}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuItem asChild><Link to="/settings"><Settings className="size-4" />Settings</Link></DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => void signOut()}><LogOut className="size-4" />Sign out</DropdownMenuItem>
+          <DropdownMenuContent align="start" className="w-52 bg-[#FAF8F5] border border-[#E8E3D8]">
+            <DropdownMenuItem asChild>
+              <Link to="/settings">
+                <Settings className="size-4 mr-2" />Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-[#E8E3D8]" />
+            <DropdownMenuItem onClick={() => void signOut()}>
+              <LogOut className="size-4 mr-2" />Sign out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -148,10 +281,9 @@ export function NotificationBell() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { ui } = useStore();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileNav, setMobileNav] = useState(false);
   const [mobileAi, setMobileAi] = useState(false);
   const [search, setSearch] = useState(false);
+  const [voice, setVoice] = useState(false);
   const [wide, setWide] = useState(true);
 
   useEffect(() => {
@@ -165,44 +297,127 @@ export function AppShell({ children }: { children: ReactNode }) {
   // On narrow screens, AI requests open the drawer
   useEffect(() => { if (!wide && ui.aiPrompt) setMobileAi(true); }, [ui.aiPrompt, wide]);
 
-  const showAiDock = wide && ui.aiOpen;
+  const path = useRouterState({ select: (r) => r.location.pathname });
+  const isAiPage = path === "/ai" || path.startsWith("/ai/");
+  const showAiDock = wide && ui.aiOpen && !isAiPage;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      <aside className={cn("hidden shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:block", collapsed ? "w-[60px]" : "w-[245px]")}>
-        <SidebarNav collapsed={collapsed} />
-      </aside>
-      <Sheet open={mobileNav} onOpenChange={setMobileNav}>
-        <SheetContent side="left" className="w-[260px] bg-sidebar p-0 text-sidebar-foreground"><SheetTitle className="sr-only">Navigation</SheetTitle><SidebarNav collapsed={false} onNavigate={() => setMobileNav(false)} /></SheetContent>
-      </Sheet>
+    <div className="h-screen w-full overflow-hidden bg-white dark:bg-background p-3 sm:p-3.5 text-[#111111]">
+      <div className="flex h-full w-full overflow-hidden rounded-[28px] md:rounded-[32px] border border-[#DDD7CB] dark:border-border bg-[#FAF8F5] dark:bg-card text-[#111111] font-sans antialiased shadow-[0_14px_45px_-10px_rgba(0,0,0,0.13),0_6px_18px_-2px_rgba(0,0,0,0.06),0_1px_3px_rgba(0,0,0,0.05)]">
+        {/* Persistent Left Sidebar (Desktop) */}
+        <aside
+          className={cn(
+            "hidden md:flex flex-col h-full border-r border-[#E8E3D8] dark:border-border bg-[#FAF8F5] transition-[width,margin] duration-200 z-20 shrink-0",
+            ui.sidebarOpen ? "w-[275px]" : "w-0 -ml-[275px] overflow-hidden border-none"
+          )}
+        >
+          <SidebarNav />
+        </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-card/80 px-3 backdrop-blur md:px-5">
-          <Button variant="ghost" size="icon" className="size-8 md:hidden" aria-label="Open navigation" onClick={() => setMobileNav(true)}><Menu className="size-4" /></Button>
-          <Button variant="ghost" size="icon" className="hidden size-8 md:inline-flex" aria-label="Toggle sidebar" onClick={() => setCollapsed((c) => !c)}>{collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}</Button>
-          <button onClick={() => setSearch(true)} className="flex h-9 max-w-md flex-1 items-center gap-2 rounded-full border bg-muted/60 px-4 text-sm text-muted-foreground transition-colors hover:border-ring/40 hover:bg-card">
-            <Search className="size-4" /><span className="flex-1 text-left">Search projects, tasks, people…</span><kbd className="hidden rounded border bg-muted px-1.5 text-[10px] font-medium sm:inline">⌘K</kbd>
-          </button>
-          <div className="ml-auto flex items-center gap-2">
-            <AiConfigHeaderButton />
-            <NotificationBell />
-            {(!showAiDock) && <Button variant="outline" size="sm" className="h-9" onClick={() => (wide ? ui.setAiOpen(true) : setMobileAi(true))}><Bot className="size-4 text-primary" /><span className="hidden sm:inline">Nexus AI</span></Button>}
-            {showAiDock && <Button variant="ghost" size="icon" className="size-9" aria-label="Hide assistant" onClick={() => ui.setAiOpen(false)}><PanelRightOpen className="size-4" /></Button>}
+        {/* Mobile Navigation Drawer */}
+        <Sheet open={ui.mobileNav} onOpenChange={ui.setMobileNav}>
+          <SheetContent side="left" className="w-[280px] max-w-[80vw] bg-[#FAF8F5] p-0 text-[#111111] border-r border-[#E8E3D8]">
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <SidebarNav onNavigate={() => ui.setMobileNav(false)} />
+          </SheetContent>
+        </Sheet>
+
+        {/* Right-Hand Main Workspace Area */}
+        <div className="flex-1 flex flex-col h-full min-w-0 bg-[#FAF8F5] dark:bg-background relative overflow-hidden">
+          {isAiPage ? (
+            /* AI Assistant Page occupies right content with its WorkspaceHeader and chat canvas */
+            children
+          ) : (
+            /* Regular Workspace Pages */
+            <>
+              <header className="flex h-14 shrink-0 items-center gap-2 border-b border-[#E8E3D8] dark:border-border bg-[#FAF8F5] dark:bg-card px-3 md:px-5 z-10">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 md:hidden text-[#777777] hover:text-[#111111] hover:bg-[#EFECE5]"
+                  aria-label="Open navigation"
+                  onClick={() => ui.setMobileNav(true)}
+                >
+                  <Menu className="size-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden size-8 md:inline-flex text-[#777777] hover:text-[#111111] hover:bg-[#EFECE5]"
+                  aria-label="Toggle sidebar"
+                  onClick={() => ui.setSidebarOpen((v) => !v)}
+                >
+                  {ui.sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+                </Button>
+                <button
+                  onClick={() => setSearch(true)}
+                  className="flex h-8 max-w-md flex-1 items-center gap-2 rounded-full border border-[#E8E3D8] dark:border-border bg-[#FAF8F5] dark:bg-background hover:bg-[#EFECE5] px-3.5 text-xs text-muted-foreground transition-colors cursor-pointer"
+                >
+                  <Search className="size-3.5" />
+                  <span className="flex-1 text-left">Search projects, tasks, people…</span>
+                  <kbd className="hidden rounded border border-[#E8E3D8] bg-[#FAF8F5] dark:bg-background px-1.5 text-[10px] font-medium sm:inline">⌘K</kbd>
+                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <AiConfigHeaderButton />
+                  <NotificationBell />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7.5 rounded-full text-xs gap-1.5 border-[#E8E3D8] dark:border-border bg-[#FAF8F5] dark:bg-card hover:bg-[#EFECE5] text-[#111111] dark:text-foreground"
+                    onClick={() => setVoice(true)}
+                    aria-label="Talk to Voice Assistant"
+                  >
+                    <AudioLines className="size-3.5 text-primary" />
+                    <span className="hidden sm:inline">Voice</span>
+                  </Button>
+                  {!showAiDock && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7.5 rounded-full text-xs gap-1.5 border-[#E8E3D8] dark:border-border bg-[#FAF8F5] dark:bg-card hover:bg-[#EFECE5] text-[#111111] dark:text-foreground"
+                      onClick={() => (wide ? ui.setAiOpen(true) : setMobileAi(true))}
+                    >
+                      <Bot className="size-3.5 text-primary" />
+                      <span className="hidden sm:inline">Nexus AI</span>
+                    </Button>
+                  )}
+                  {showAiDock && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-[#777777] hover:text-[#111111] hover:bg-[#EFECE5]"
+                      aria-label="Hide assistant"
+                      onClick={() => ui.setAiOpen(false)}
+                    >
+                      <PanelRightOpen className="size-4" />
+                    </Button>
+                  )}
+                </div>
+              </header>
+
+              <main className="flex-1 overflow-y-auto bg-[#FAF8F5] dark:bg-background no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <div className="mx-auto max-w-[1280px] px-4 py-6 md:px-8">
+                  {children}
+                </div>
+              </main>
+            </>
+          )}
+        </div>
+
+        {/* Companion AI Dock on right if opened on non-AI pages */}
+        {showAiDock && (
+          <div className="w-[340px] shrink-0 border-l border-[#E8E3D8] dark:border-border bg-[#FAF8F5]">
+            <AiPanel />
           </div>
-        </header>
-        <main className="flex-1 overflow-y-auto"><div className="mx-auto max-w-[1280px] px-4 py-7 md:px-8">{children}</div></main>
+        )}
       </div>
-
-      {showAiDock && <div className="w-[340px] shrink-0 border-l"><AiPanel /></div>}
-      <Sheet open={!wide && mobileAi} onOpenChange={setMobileAi}>
-        <SheetContent className="w-full p-0 sm:max-w-md [&>button]:hidden"><SheetTitle className="sr-only">Nexus AI</SheetTitle><AiPanel onClose={() => setMobileAi(false)} /></SheetContent>
-      </Sheet>
 
       <GlobalSearch open={search} setOpen={setSearch} />
       <TaskDrawer />
       <CreateProjectDialog />
       <CreateTaskDialog />
       <AiConfigDialog />
+      <VoiceAgent open={voice} onClose={() => setVoice(false)} />
     </div>
   );
 }

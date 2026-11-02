@@ -2,9 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Hexagon } from "lucide-react";
 import { toast } from "sonner";
-import "@lovable.dev/cloud-auth-js/styles.css";
 import { supabase } from "@/integrations/supabase/client";
-import { cloudAuth } from "@/integrations/auth/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,8 +57,11 @@ function AuthPage() {
 
   const oauth = async (provider: "google") => {
     sessionStorage.setItem("nexus-after-login", target);
-    const r = await cloudAuth.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin });
-    if (r.error) toast.error(r.error.message ?? "Sign-in failed");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) toast.error(error.message ?? "Sign-in failed");
   };
 
   return (

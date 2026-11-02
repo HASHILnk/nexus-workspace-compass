@@ -25,9 +25,21 @@ function Overview() {
   const { state, ui } = useStore();
   const k = workspaceKpis(state);
   const me = memberById(state, state.meId);
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [view, setView] = useState<"grid" | "list">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("nexus_overview_view") as "grid" | "list") || "list";
+    }
+    return "list";
+  });
   const [filter, setFilter] = useState<"all" | ProjectStatus>("all");
   const [scope, setScope] = useState("all");
+
+  const handleSetView = (newView: "grid" | "list") => {
+    setView(newView);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("nexus_overview_view", newView);
+    }
+  };
 
   const projects = state.projects.filter((p) => (filter === "all" || p.status === filter) && (scope === "all" || p.id === scope));
   const myTasks = state.tasks.filter((t) => t.assigneeId === state.meId && (scope === "all" || t.projectId === scope));
@@ -57,30 +69,69 @@ function Overview() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpis.map((c) => (
-          <div key={c.label} className="rounded-2xl border bg-card p-4 shadow-card">
-            <div className="flex items-center justify-between"><span className="text-xs font-medium text-muted-foreground">{c.label}</span><span className={cn("flex size-7 items-center justify-center rounded-lg", c.tone)}><c.icon className="size-3.5" /></span></div>
-            <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight">{c.value}</p>
-            {c.bar !== undefined ? <Bar value={c.bar} tone="chart-3" className="mt-2" /> : null}
-            <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">{c.label === "Completed" && <TrendingUp className="size-3 text-success" />}{c.sub}</p>
-          </div>
-        ))}
+      {/* Unified 4-in-1 KPI Metrics Card */}
+      <div className="rounded-2xl border border-[#E8E3D8] bg-[#FAF8F5] shadow-card overflow-hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          {kpis.map((c, i) => (
+            <div
+              key={c.label}
+              className={cn(
+                "p-5 flex flex-col justify-between",
+                // Mobile divider
+                i > 0 && "border-t border-[#E8E3D8] sm:border-t-0",
+                // Tablet 2x2 dividers
+                i % 2 === 1 && "sm:border-l sm:border-[#E8E3D8]",
+                i >= 2 && "sm:border-t sm:border-[#E8E3D8]",
+                // Desktop 4x1 divider lines
+                i > 0 && "lg:border-l lg:border-t-0 lg:border-[#E8E3D8]",
+                i === 0 && "lg:border-l-0"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">{c.label}</span>
+                <span className={cn("flex size-7 items-center justify-center rounded-lg shadow-2xs", c.tone)}>
+                  <c.icon className="size-3.5" />
+                </span>
+              </div>
+              <div className="mt-3">
+                <p className="text-2xl font-semibold tabular-nums tracking-tight">{c.value}</p>
+                {c.bar !== undefined ? <Bar value={c.bar} tone="chart-3" className="mt-2" /> : null}
+                <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                  {c.label === "Completed" && <TrendingUp className="size-3 text-success" />}
+                  {c.sub}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <Panel title="Your Projects" action={
         <div className="flex items-center gap-2">
-          <div className="hidden gap-0.5 rounded-lg bg-muted p-0.5 sm:flex">
-            {(["all", "in_progress", "planning", "completed", "at_risk"] as const).map((f) => <button key={f} onClick={() => setFilter(f)} className={cn("rounded-md px-2 py-1 text-xs capitalize text-muted-foreground", filter === f && "bg-card font-medium text-foreground shadow-card")}>{f.replace("_", " ")}</button>)}
+          <div className="hidden gap-0.5 rounded-lg bg-[#EFECE5] p-0.5 sm:flex">
+            {(["all", "in_progress", "planning", "completed", "at_risk"] as const).map((f) => <button key={f} onClick={() => setFilter(f)} className={cn("rounded-md px-2 py-1 text-xs capitalize text-muted-foreground", filter === f && "bg-[#FAF8F5] font-medium text-foreground shadow-2xs")}>{f.replace("_", " ")}</button>)}
           </div>
-          <div className="flex gap-0.5 rounded-lg bg-muted p-0.5">
-            <button aria-label="Grid view" onClick={() => setView("grid")} className={cn("rounded-md p-1", view === "grid" && "bg-card shadow-card")}><LayoutGrid className="size-3.5" /></button>
-            <button aria-label="List view" onClick={() => setView("list")} className={cn("rounded-md p-1", view === "list" && "bg-card shadow-card")}><List className="size-3.5" /></button>
+          <div className="flex gap-0.5 rounded-lg bg-[#EFECE5] p-0.5">
+            <button aria-label="Grid view" onClick={() => handleSetView("grid")} className={cn("rounded-md p-1", view === "grid" && "bg-[#FAF8F5] shadow-2xs")}><LayoutGrid className="size-3.5" /></button>
+            <button aria-label="List view" onClick={() => handleSetView("list")} className={cn("rounded-md p-1", view === "list" && "bg-[#FAF8F5] shadow-2xs")}><List className="size-3.5" /></button>
           </div>
         </div>}>
-        {projects.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No projects in this filter.</p> : view === "grid"
-          ? <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{projects.slice(0, 8).map((p) => <ProjectCard key={p.id} project={p} />)}</div>
-          : <div>{projects.map((p) => <ProjectRow key={p.id} project={p} />)}</div>}
+        {projects.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">No projects in this filter.</p>
+        ) : view === "grid" ? (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{projects.slice(0, 8).map((p) => <ProjectCard key={p.id} project={p} />)}</div>
+        ) : (
+          <div>
+            <div className="hidden md:grid md:grid-cols-[2fr_1fr_140px_100px_110px] items-center gap-4 border-b border-[#E8E3D8] bg-[#F2EFE9] px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span>Project</span>
+              <span>Team</span>
+              <span>Progress</span>
+              <span>Health</span>
+              <span>Status</span>
+            </div>
+            {projects.map((p) => <ProjectRow key={p.id} project={p} />)}
+          </div>
+        )}
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_340px]">

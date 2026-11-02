@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { pageHead } from "@/lib/head";
-import { AiPanel } from "@/components/nexus/ai-panel";
+import { AiWorkspaceView } from "@/components/nexus/ai-workspace-view";
 
 export const Route = createFileRoute("/_authenticated/ai/$threadId")({
   head: pageHead("Conversation", "A saved Nexus AI conversation about your workspace."),
@@ -9,9 +9,5 @@ export const Route = createFileRoute("/_authenticated/ai/$threadId")({
 
 function ThreadPage() {
   const { threadId } = Route.useParams();
-  return (
-    <div className="mx-auto h-[calc(100vh-7.5rem)] max-w-3xl overflow-hidden rounded-xl border shadow-card">
-      <AiPanel routeThreadId={threadId} />
-    </div>
-  );
+  return <AiWorkspaceView routeThreadId={threadId} />;
 }

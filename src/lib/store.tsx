@@ -86,6 +86,10 @@ interface UI {
   setCreateProjectOpen: (v: boolean) => void;
   createTaskOpen: { projectId?: string; dueDate?: string } | null;
   setCreateTaskOpen: (v: { projectId?: string; dueDate?: string } | null) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  mobileNav: boolean;
+  setMobileNav: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const Ctx = createContext<{ state: State; dispatch: React.Dispatch<Action>; ui: UI; refresh: () => Promise<void> } | null>(null);
@@ -115,15 +119,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
-  const [aiOpen, setAiOpen] = useState(true);
+  const [aiOpen, setAiOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState<UI["aiPrompt"]>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [createTaskOpen, setCreateTaskOpen] = useState<UI["createTaskOpen"]>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileNav, setMobileNav] = useState(false);
 
   const ui: UI = {
     openTaskId, setOpenTaskId, aiOpen, setAiOpen, aiPrompt,
     askAI: (text) => { setAiOpen(true); setAiPrompt((p) => ({ text, n: (p?.n ?? 0) + 1 })); },
     createProjectOpen, setCreateProjectOpen, createTaskOpen, setCreateTaskOpen,
+    sidebarOpen, setSidebarOpen, mobileNav, setMobileNav,
   };
 
   if (loadError && !state.loaded) {

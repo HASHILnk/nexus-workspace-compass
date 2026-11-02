@@ -15,8 +15,8 @@ type AppEvents = {
 
 declare global {
   interface Window {
-    __lovableEvents?: AppEvents;
-    __lovableReportRuntimeError?: (payload: {
+    __appEvents?: AppEvents;
+    __appReportRuntimeError?: (payload: {
       message: string;
       stack?: string;
       filename?: string;
@@ -26,7 +26,7 @@ declare global {
 
 export function reportAppError(error: unknown, context: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
-  window.__lovableEvents?.captureException?.(
+  window.__appEvents?.captureException?.(
     error,
     {
       source: "react_error_boundary",
@@ -41,14 +41,12 @@ export function reportAppError(error: unknown, context: Record<string, unknown> 
   );
 
   const stack = error instanceof Error ? error.stack : undefined;
-  window.__lovableReportRuntimeError?.({
+  window.__appReportRuntimeError?.({
     message: describeThrown(error),
     ...(stack !== undefined && { stack }),
     filename: window.location.pathname,
   });
 }
-
-export const reportLovableError = reportAppError;
 
 const MAX_SERIALIZED_LENGTH = 2000;
 

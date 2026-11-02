@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, getToolName, isToolUIPart, type UIMessage } from "ai";
-import { Expand, History, Plus, Trash2, X } from "lucide-react";
+import { Check, Expand, History, Languages, Mic, MicOff, PhoneCall, Plus, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,7 +21,9 @@ import { ROLE_LABEL } from "@/lib/permissions";
 import { createThread, deleteThread, getThreadMessages, listThreads } from "@/lib/ai.functions";
 import { BulkChangesCard, PlanCard, ProjectsMini, SavedTaskCard, TaskRows } from "./ai-cards";
 import { AiLimitBar } from "./ai-config-dialog";
+import { SarvamVoiceModal } from "./sarvam-voice-modal";
 import { getUserAiConfig, openAiConfigDialog, recordAiRequest } from "@/lib/ai/user-ai-config";
+import { SUPPORTED_VOICE_LANGUAGES, useSpeechToText, useTextToSpeech } from "@/lib/ai/voice";
 import { cn } from "@/lib/utils";
 import mark from "@/assets/nexus-ai-mark.png";
 
@@ -45,6 +47,7 @@ export function AiPanel({ className, onClose, routeThreadId }: { className?: str
   const remove = useServerFn(deleteThread);
   const threads = useQuery({ queryKey: ["ai-threads"], queryFn: () => list() });
   const [panelThread, setPanelThread] = useState<string | null>(null);
+  const [sarvamCallOpen, setSarvamCallOpen] = useState(false);
   const creating = useRef(false);
   const activeId = routeThreadId ?? panelThread;
 
@@ -72,6 +75,16 @@ export function AiPanel({ className, onClose, routeThreadId }: { className?: str
           <p className="text-sm font-semibold leading-tight">Nexus AI</p>
           <p className="truncate text-[11px] text-muted-foreground">{title}</p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSarvamCallOpen(true)}
+          className="h-7 gap-1 px-2 text-xs border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+          title="Start live voice call with Sarvam AI agent"
+        >
+          <PhoneCall className="size-3 text-emerald-600 dark:text-emerald-400" />
+          <span className="hidden sm:inline">Call Agent</span>
+        </Button>
         <Button variant="ghost" size="icon" className="size-7" aria-label="New conversation" onClick={() => void newThread()}><Plus className="size-4" /></Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7" aria-label="Conversation history"><History className="size-4" /></Button></DropdownMenuTrigger>
@@ -90,6 +103,7 @@ export function AiPanel({ className, onClose, routeThreadId }: { className?: str
       </header>
       <AiLimitBar />
       {activeId ? <ThreadLoader key={activeId} threadId={activeId} /> : <div className="flex-1 p-4"><Shimmer>Loading conversations…</Shimmer></div>}
+      <SarvamVoiceModal open={sarvamCallOpen} onOpenChange={setSarvamCallOpen} />
     </aside>
   );
 }
@@ -140,11 +154,45 @@ function ChatWindow({ threadId, initial }: { threadId: string; initial: UIMessag
     },
   }), [threadId]);
 
-  const { messages, sendMessage, status, stop, error } = useChat({
-    id: threadId, messages: initial, transport,
-    onError: (e) => toast.error(e.message || "Nexus AI couldn’t answer."),
-    onFinish: () => { void refresh(); void qc.invalidateQueries({ queryKey: ["ai-threads"] }); ta.current?.focus(); },
+  const {
+    isListening,
+    selectedLanguage,
+    setSelectedLanguage,
+    toggleListening,
+    stopListening,
+    resetTranscript,
+  } = useSpeechToText({
+    onTranscript: (spoken) => setInput(spoken),
   });
+
+  const {
+    isSpeaking,
+    currentSpeakingId,
+    autoPlay,
+    toggleAutoPlay,
+    speak,
+    stop: stopSpeech,
+  } = useTextToSpeech();
+
+  const { messages, sendMessage, status, stop, error } = useChat({
+    id: threadId,
+    messages: initial,
+    transport,
+    onError: (e) => toast.error(e.message || "Nexus AI couldn’t answer."),
+    onFinish: ({ message }) => {
+      void refresh();
+      void qc.invalidateQueries({ queryKey: ["ai-threads"] });
+      ta.current?.focus();
+      if (autoPlay && message) {
+        const text = message.parts
+          .filter((p: { type: string; text?: string }) => p.type === "text" && Boolean(p.text))
+          .map((p: { type: string; text?: string }) => p.text || "")
+          .join(" ");
+        if (text) speak(text, message.id, selectedLanguage);
+      }
+    },
+  });
+
   const busy = status === "submitted" || status === "streaming";
   const send = (text: string) => {
     const t = text.trim();
@@ -155,9 +203,11 @@ function ChatWindow({ threadId, initial }: { threadId: string; initial: UIMessag
       openAiConfigDialog();
       return;
     }
+    stopListening();
+    resetTranscript();
+    setInput("");
     recordAiRequest();
     void sendMessage({ text: t });
-    setInput("");
   };
 
   useEffect(() => { ta.current?.focus(); }, []);
@@ -170,6 +220,7 @@ function ChatWindow({ threadId, initial }: { threadId: string; initial: UIMessag
   const last = messages[messages.length - 1];
   const userCfg = getUserAiConfig();
   const isKeyConfigured = Boolean(userCfg?.apiKey?.trim());
+  const currentLang = SUPPORTED_VOICE_LANGUAGES.find((l) => l.code === selectedLanguage) || SUPPORTED_VOICE_LANGUAGES[0]!;
 
   return (
     <>
@@ -196,6 +247,38 @@ function ChatWindow({ threadId, initial }: { threadId: string; initial: UIMessag
                   if (isToolUIPart(p)) return <ToolPart key={i} part={p} />;
                   return null;
                 })}
+                {m.role === "assistant" && (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (currentSpeakingId === m.id) {
+                          stopSpeech();
+                        } else {
+                          const text = m.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ");
+                          speak(text, m.id, selectedLanguage);
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                        currentSpeakingId === m.id && "bg-primary/10 text-primary font-medium"
+                      )}
+                      title={currentSpeakingId === m.id ? "Stop voice playback" : "Read aloud (Voice response)"}
+                    >
+                      {currentSpeakingId === m.id ? (
+                        <>
+                          <Volume2 className="size-3 animate-pulse text-primary" />
+                          <span>Speaking…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="size-3" />
+                          <span>Listen</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </MessageContent>
             </Message>
           ))}
@@ -207,6 +290,19 @@ function ChatWindow({ threadId, initial }: { threadId: string; initial: UIMessag
 
       <div className="border-t p-3">
         {messages.length === 0 && <div className="mb-2 flex flex-wrap gap-1.5">{CHIPS.map((c) => <button key={c} onClick={() => send(c)} className="rounded-full border bg-background px-2.5 py-1 text-xs hover:border-primary">{c.length > 40 ? "Create a project plan" : c}</button>)}</div>}
+
+        {isListening && (
+          <div className="mb-2 flex items-center justify-between rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive animate-pulse">
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-destructive animate-ping" />
+              <span className="font-medium">Listening ({currentLang.name})… speak your request</span>
+            </div>
+            <button type="button" onClick={stopListening} className="text-[11px] font-semibold underline">
+              Done
+            </button>
+          </div>
+        )}
+
         <PromptInput onSubmit={(msg) => send(msg.text)}>
           <PromptInputTextarea ref={ta} value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask, or say “Rahul, handle the API integration by Friday”…" aria-label="Message Nexus AI" className="min-h-12 text-sm" />
           <PromptInputFooter className="justify-between">
@@ -214,7 +310,72 @@ function ChatWindow({ threadId, initial }: { threadId: string; initial: UIMessag
               <SelectTrigger className="h-7 w-auto max-w-40 gap-1 border-0 bg-muted px-2 text-[11px] shadow-none" aria-label="Context"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="workspace">Entire workspace</SelectItem>{state.projects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
             </Select>
-            <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !input.trim()} />
+
+            <div className="flex items-center gap-1">
+              {/* Spoken Language Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground hover:text-foreground"
+                    title={`Voice language: ${currentLang.name}`}
+                  >
+                    <Languages className="size-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44 text-xs">
+                  <DropdownMenuLabel className="text-[11px]">Voice Language</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {SUPPORTED_VOICE_LANGUAGES.map((lang) => (
+                    <DropdownMenuItem
+                      key={lang.code}
+                      onClick={() => setSelectedLanguage(lang.code)}
+                      className={cn(
+                        "flex items-center justify-between text-xs cursor-pointer",
+                        selectedLanguage === lang.code && "font-semibold text-primary"
+                      )}
+                    >
+                      <span>{lang.name}</span>
+                      {selectedLanguage === lang.code && <Check className="size-3" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Auto-read voice responses toggle */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleAutoPlay}
+                className={cn(
+                  "size-7 transition-colors",
+                  autoPlay
+                    ? "text-primary bg-primary/10 hover:bg-primary/20"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title={autoPlay ? "Spoken replies: ON (click to mute)" : "Spoken replies: OFF (click to enable auto-voice)"}
+              >
+                {autoPlay ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
+              </Button>
+
+              {/* Microphone / Voice Input button */}
+              <Button
+                type="button"
+                variant={isListening ? "destructive" : "ghost"}
+                size="icon"
+                onClick={toggleListening}
+                className={cn(
+                  "size-7 transition-all",
+                  isListening && "animate-pulse ring-2 ring-destructive ring-offset-1 bg-destructive text-destructive-foreground hover:bg-destructive"
+                )}
+                title={isListening ? "Listening... click to stop" : "Speak to Nexus AI (Voice mode)"}
+              >
+                {isListening ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
+              </Button>
+
+              <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !input.trim()} />
+            </div>
           </PromptInputFooter>
         </PromptInput>
       </div>

@@ -22,6 +22,8 @@ import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedTimelineRouteImport } from './routes/_authenticated/timeline'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiSttRouteImport } from './routes/api/stt'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as AuthenticatedAiIndexRouteImport } from './routes/_authenticated/ai.index'
 import { Route as AuthenticatedAiThreadIdRouteImport } from './routes/_authenticated/ai.$threadId'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects.index'
@@ -92,6 +94,16 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSttRoute = ApiSttRouteImport.update({
+  id: '/api/stt',
+  path: '/api/stt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAiIndexRoute = AuthenticatedAiIndexRouteImport.update({
   id: '/ai/',
   path: '/ai/',
@@ -128,6 +140,8 @@ export interface FileRoutesByFullPath {
   '/team': typeof AuthenticatedTeamRoute
   '/timeline': typeof AuthenticatedTimelineRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/stt': typeof ApiSttRoute
+  '/api/tts': typeof ApiTtsRoute
   '/ai/$threadId': typeof AuthenticatedAiThreadIdRoute
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
   '/ai/': typeof AuthenticatedAiIndexRoute
@@ -144,6 +158,8 @@ export interface FileRoutesByTo {
   '/team': typeof AuthenticatedTeamRoute
   '/timeline': typeof AuthenticatedTimelineRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/stt': typeof ApiSttRoute
+  '/api/tts': typeof ApiTtsRoute
   '/': typeof AuthenticatedIndexRoute
   '/ai/$threadId': typeof AuthenticatedAiThreadIdRoute
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
@@ -164,6 +180,8 @@ export interface FileRoutesById {
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/_authenticated/timeline': typeof AuthenticatedTimelineRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/stt': typeof ApiSttRoute
+  '/api/tts': typeof ApiTtsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/ai/$threadId': typeof AuthenticatedAiThreadIdRoute
   '/_authenticated/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
@@ -185,6 +203,8 @@ export interface FileRouteTypes {
     | '/team'
     | '/timeline'
     | '/api/chat'
+    | '/api/stt'
+    | '/api/tts'
     | '/ai/$threadId'
     | '/projects/$projectId'
     | '/ai/'
@@ -201,6 +221,8 @@ export interface FileRouteTypes {
     | '/team'
     | '/timeline'
     | '/api/chat'
+    | '/api/stt'
+    | '/api/tts'
     | '/'
     | '/ai/$threadId'
     | '/projects/$projectId'
@@ -220,6 +242,8 @@ export interface FileRouteTypes {
     | '/_authenticated/team'
     | '/_authenticated/timeline'
     | '/api/chat'
+    | '/api/stt'
+    | '/api/tts'
     | '/_authenticated/'
     | '/_authenticated/ai/$threadId'
     | '/_authenticated/projects/$projectId'
@@ -231,6 +255,8 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiSttRoute: typeof ApiSttRoute
+  ApiTtsRoute: typeof ApiTtsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -326,6 +352,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stt': {
+      id: '/api/stt'
+      path: '/api/stt'
+      fullPath: '/api/stt'
+      preLoaderRoute: typeof ApiSttRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/ai/': {
       id: '/_authenticated/ai/'
       path: '/ai'
@@ -409,6 +449,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiSttRoute: ApiSttRoute,
+  ApiTtsRoute: ApiTtsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

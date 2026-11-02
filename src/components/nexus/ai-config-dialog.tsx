@@ -4,6 +4,8 @@ import {
   Sparkles,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
+  Loader2,
   RotateCcw,
   Eye,
   EyeOff,
@@ -185,25 +187,46 @@ export function AiConfigDialog() {
   const { config, stats, isConnected, saveConfig, clearConfig, resetUsage } =
     useUserAiConfig();
 
-  const [provider, setProvider] = useState<AiProvider>("gemini");
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("gemini-2.5-flash");
+  const [provider, setProvider] = useState<AiProvider>("openrouter");
+  const [providerKeys, setProviderKeys] = useState<Record<AiProvider, string>>({
+    openrouter: "",
+    gemini: "",
+    openai: "",
+  });
+  const [model, setModel] = useState("openrouter/free");
   const [dailyLimit, setDailyLimit] = useState<number>(50);
   const [showKey, setShowKey] = useState(false);
+  const [testingKey, setTestingKey] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   // Sync state when modal opens or config updates
   useEffect(() => {
     if (config) {
-      setProvider(config.provider || "gemini");
-      setApiKey(config.apiKey || "");
-      setModel(config.model || "gemini-2.5-flash");
+      setProvider(config.provider || "openrouter");
+      const savedKeys: Record<AiProvider, string> = {
+        openrouter:
+          config.providerKeys?.openrouter ??
+          (config.provider === "openrouter" ? config.apiKey : ""),
+        gemini:
+          config.providerKeys?.gemini ??
+          (config.provider === "gemini" ? config.apiKey : ""),
+        openai:
+          config.providerKeys?.openai ??
+          (config.provider === "openai" ? config.apiKey : ""),
+      };
+      setProviderKeys(savedKeys);
+      setModel(
+        config.model ||
+          (config.provider === "openrouter" ? "openrouter/free" : "gemini-2.5-flash")
+      );
       setDailyLimit(config.customDailyLimit || 50);
     } else {
-      setProvider("gemini");
-      setApiKey("");
-      setModel("gemini-2.5-flash");
+      setProvider("openrouter");
+      setProviderKeys({ openrouter: "", gemini: "", openai: "" });
+      setModel("openrouter/free");
       setDailyLimit(50);
     }
+    setTestResult(null);
   }, [config, open]);
 
   // Listen to open event
@@ -216,29 +239,122 @@ export function AiConfigDialog() {
   // Filter models by provider
   const filteredModels = AVAILABLE_MODELS.filter((m) => m.provider === provider);
 
-  // Auto-detect provider if user pastes standard key
   const handleKeyChange = (val: string) => {
-    setApiKey(val);
-    const trimmed = val.trim();
-    if (trimmed.startsWith("sk-") && provider !== "openai") {
-      setProvider("openai");
-      setModel("gpt-4o");
-    } else if ((trimmed.startsWith("AIza") || trimmed.startsWith("AQ.")) && provider !== "gemini") {
-      setProvider("gemini");
-      setModel("gemini-2.5-flash");
-    }
+    setTestResult(null);
+    setProviderKeys((prev) => ({ ...prev, [provider]: val }));
   };
 
   const handleProviderChange = (p: AiProvider) => {
     setProvider(p);
-    const defaultModel = p === "gemini" ? "gemini-2.5-flash" : "gpt-4o";
+    setTestResult(null);
+    const defaultModel =
+      p === "openrouter"
+        ? "openrouter/free"
+        : p === "gemini"
+        ? "gemini-2.5-flash"
+        : "gpt-4o";
     setModel(defaultModel);
   };
 
+  const handleTestKey = async () => {
+    const keyToTest = (providerKeys[provider] || "").trim();
+    if (!keyToTest) {
+      toast.error(`Please enter your ${provider} API key first.`);
+      return;
+    }
+    setTestingKey(true);
+    setTestResult(null);
+    try {
+      if (provider === "openrouter") {
+        if (!keyToTest.startsWith("sk-or-")) {
+          setTestResult({
+            ok: false,
+            message:
+              "OpenRouter keys must start with 'sk-or-v1-'. Please check your key from openrouter.ai/keys.",
+          });
+          return;
+        }
+        const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
+          headers: { Authorization: `Bearer ${keyToTest}` },
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          const errCode = data?.error?.code || res.status;
+          const errMsg = data?.error?.message || `HTTP ${res.status}`;
+          const isTruncated = keyToTest.length < 65;
+          setTestResult({
+            ok: false,
+            message: isTruncated
+              ? `OpenRouter returned ${errCode}: "${errMsg}". Your key has only ${keyToTest.length} characters (valid keys are ~73 characters). It looks like the key was partially copied—please copy the full key from openrouter.ai/keys.`
+              : `OpenRouter returned ${errCode}: "${errMsg}". Please check your key at openrouter.ai/keys.`,
+          });
+        } else {
+          const label = data.data?.label ? ` (${data.data.label})` : "";
+          setTestResult({
+            ok: true,
+            message: `Valid key${label}! Successfully connected to OpenRouter.`,
+          });
+        }
+      } else if (provider === "gemini") {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${keyToTest}`
+        );
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setTestResult({
+            ok: false,
+            message: `Google Gemini returned: ${data?.error?.message || "Invalid key"}.`,
+          });
+        } else {
+          setTestResult({
+            ok: true,
+            message: "Valid key! Successfully connected to Google Gemini.",
+          });
+        }
+      } else if (provider === "openai") {
+        const res = await fetch("https://api.openai.com/v1/models", {
+          headers: { Authorization: `Bearer ${keyToTest}` },
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setTestResult({
+            ok: false,
+            message: `OpenAI returned: ${data?.error?.message || "Invalid key"}.`,
+          });
+        } else {
+          setTestResult({
+            ok: true,
+            message: "Valid key! Successfully connected to OpenAI.",
+          });
+        }
+      }
+    } catch (e) {
+      setTestResult({
+        ok: false,
+        message: `Network check failed: ${(e as Error).message}`,
+      });
+    } finally {
+      setTestingKey(false);
+    }
+  };
+
   const handleSave = () => {
-    const trimmed = apiKey.trim();
+    const trimmed = (providerKeys[provider] || "").trim();
+    const providerNames: Record<AiProvider, string> = {
+      gemini: "Google Gemini",
+      openai: "OpenAI",
+      openrouter: "OpenRouter",
+    };
+
     if (!trimmed) {
-      toast.error("Please enter a valid API key.");
+      toast.error(`Please enter an API key for ${providerNames[provider]}.`);
+      return;
+    }
+
+    if (provider === "openrouter" && trimmed.length < 60) {
+      toast.error(
+        `This OpenRouter key looks incomplete (${trimmed.length} characters). OpenRouter keys usually have ~73 characters. Please make sure you copied the full key.`
+      );
       return;
     }
 
@@ -247,15 +363,17 @@ export function AiConfigDialog() {
       apiKey: trimmed,
       model,
       customDailyLimit: Number(dailyLimit) || 50,
+      providerKeys: { ...providerKeys, [provider]: trimmed },
     });
 
-    toast.success(`Connected successfully to ${provider === "gemini" ? "Google Gemini" : "OpenAI"}!`);
+    toast.success(`Connected successfully to ${providerNames[provider]}!`);
     setOpen(false);
   };
 
   const handleReset = () => {
     clearConfig();
-    setApiKey("");
+    setProviderKeys({ openrouter: "", gemini: "", openai: "" });
+    setTestResult(null);
     toast.success("AI configuration and limits reset successfully.");
     setOpen(false);
   };
@@ -265,7 +383,7 @@ export function AiConfigDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto overflow-x-hidden min-w-0">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -280,29 +398,47 @@ export function AiConfigDialog() {
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-1 text-sm">
+        <div className="space-y-4 py-1 text-sm min-w-0 max-w-full">
           {/* Provider Selection */}
           <div className="space-y-1.5">
             <Label className="text-xs">AI Provider</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleProviderChange("openrouter")}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition-colors",
+                  provider === "openrouter"
+                    ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary"
+                    : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Sparkles className="size-3.5 text-indigo-500" />
+                <span>OpenRouter</span>
+                <span className="rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] font-bold text-emerald-600">
+                  Free
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => handleProviderChange("gemini")}
                 className={cn(
-                  "flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-medium transition-colors",
+                  "flex items-center justify-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition-colors",
                   provider === "gemini"
                     ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary"
                     : "hover:bg-muted text-muted-foreground"
                 )}
               >
-                <Zap className="size-3.5" />
-                <span>Google Gemini</span>
+                <Zap className="size-3.5 text-amber-500" />
+                <span>Gemini</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => handleProviderChange("openai")}
                 className={cn(
-                  "flex items-center justify-center gap-2 rounded-lg border p-2.5 text-xs font-medium transition-colors",
+                  "flex items-center justify-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition-colors",
                   provider === "openai"
                     ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary"
                     : "hover:bg-muted text-muted-foreground"
@@ -318,9 +454,22 @@ export function AiConfigDialog() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs">
-                {provider === "gemini" ? "Gemini API Key" : "OpenAI API Key"}
+                {provider === "openrouter"
+                  ? "OpenRouter API Key"
+                  : provider === "gemini"
+                  ? "Gemini API Key"
+                  : "OpenAI API Key"}
               </Label>
-              {provider === "gemini" ? (
+              {provider === "openrouter" ? (
+                <a
+                  href="https://openrouter.ai/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-primary hover:underline font-medium"
+                >
+                  Get free OpenRouter key <ExternalLink className="size-2.5" />
+                </a>
+              ) : provider === "gemini" ? (
                 <a
                   href="https://aistudio.google.com/app/apikey"
                   target="_blank"
@@ -340,45 +489,119 @@ export function AiConfigDialog() {
                 </a>
               )}
             </div>
-            <div className="relative">
-              <Input
-                type={showKey ? "text" : "password"}
-                placeholder={
-                  provider === "gemini"
-                    ? "AIzaSy... or AQ.Ab8..."
-                    : "sk-proj-..."
-                }
-                value={apiKey}
-                onChange={(e) => handleKeyChange(e.target.value)}
-                className="pr-10 font-mono text-xs"
-              />
-              <button
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1 min-w-0">
+                <Input
+                  type={showKey ? "text" : "password"}
+                  placeholder={
+                    provider === "openrouter"
+                      ? "sk-or-v1-..."
+                      : provider === "gemini"
+                      ? "AIzaSy... or AQ.Ab8..."
+                      : "sk-proj-..."
+                  }
+                  value={providerKeys[provider] || ""}
+                  onChange={(e) => handleKeyChange(e.target.value)}
+                  className="pr-10 font-mono text-xs w-full min-w-0"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey(!showKey)}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  aria-label={showKey ? "Hide key" : "Show key"}
+                >
+                  {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+
+              <Button
                 type="button"
-                onClick={() => setShowKey(!showKey)}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                aria-label={showKey ? "Hide key" : "Show key"}
+                variant="outline"
+                size="sm"
+                onClick={handleTestKey}
+                disabled={testingKey || !(providerKeys[provider] || "").trim()}
+                className="shrink-0 text-xs gap-1.5 h-9 px-3 cursor-pointer"
               >
-                {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
+                {testingKey ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Testing…</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="size-3.5 text-amber-500" />
+                    <span>Test Key</span>
+                  </>
+                )}
+              </Button>
             </div>
+
+            {/* Test result feedback banner */}
+            {testResult && (
+              <div
+                className={cn(
+                  "p-2.5 rounded-lg border text-xs flex items-start gap-2 animate-in fade-in",
+                  testResult.ok
+                    ? "bg-emerald-50/80 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
+                    : "bg-red-50/80 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300"
+                )}
+              >
+                {testResult.ok ? (
+                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="size-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1 leading-relaxed">{testResult.message}</div>
+              </div>
+            )}
+
             <p className="text-[11px] text-muted-foreground">
-              Your key is saved locally in your browser and used securely for your AI requests.
+              {provider === "openrouter"
+                ? "OpenRouter keys start with 'sk-or-v1-' and are 73 characters long. Check with 'Test Key' to ensure it is valid."
+                : provider === "gemini"
+                ? "Your Google Gemini API key is saved only for Gemini and used securely in your browser."
+                : "Your OpenAI API key is saved only for OpenAI requests."}
             </p>
           </div>
 
           {/* Model Selection */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Available Model</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Available Model</Label>
+              {provider === "openrouter" && (
+                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  Includes Free Models (:free)
+                </span>
+              )}
+            </div>
             <Select value={model} onValueChange={setModel}>
-              <SelectTrigger className="text-xs">
-                <SelectValue placeholder="Select a model" />
+              <SelectTrigger className="h-9 text-xs min-w-0 w-full overflow-hidden text-left">
+                <SelectValue placeholder="Select a model">
+                  {selectedModelInfo ? (
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className="font-medium text-foreground truncate">{selectedModelInfo.name}</span>
+                      {selectedModelInfo.isFree && (
+                        <span className="rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] font-bold text-emerald-600 shrink-0">
+                          FREE
+                        </span>
+                      )}
+                    </span>
+                  ) : null}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
                 {filteredModels.map((m) => (
-                  <SelectItem key={m.id} value={m.id} className="text-xs">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium text-foreground">{m.name}</span>
-                      <span className="text-[10px] text-muted-foreground">
+                  <SelectItem key={m.id} value={m.id} className="text-xs py-2">
+                    <div className="flex flex-col gap-0.5 max-w-full">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-foreground">{m.name}</span>
+                        {m.isFree && (
+                          <span className="rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] font-bold text-emerald-600">
+                            FREE
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-normal line-clamp-2">
                         {m.description} · Limit: {m.rpmLimit} RPM
                       </span>
                     </div>
@@ -464,7 +687,11 @@ export function AiConfigDialog() {
             </div>
 
             <p className="text-[10px] text-muted-foreground">
-              Tip: The free Gemini tier allows up to 15 requests/minute. Space your messages 4-5 seconds apart to prevent 429 errors.
+              {provider === "openrouter"
+                ? "Tip: OpenRouter free models have an approximate 20 requests/minute limit with no credit card required."
+                : provider === "gemini"
+                ? "Tip: The free Gemini tier allows up to 15 requests/minute. Space your messages 4-5 seconds apart to prevent 429 errors."
+                : "Tip: OpenAI requests use your standard OpenAI platform pay-as-you-go quota."}
             </p>
           </div>
         </div>

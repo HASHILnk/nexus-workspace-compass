@@ -1,7 +1,7 @@
 // Client-side manager for personal AI API keys, model preferences, and rate limit quotas.
 import { useState, useEffect, useCallback } from "react";
 
-export type AiProvider = "gemini" | "openai";
+export type AiProvider = "gemini" | "openai" | "openrouter";
 
 export interface ModelOption {
   id: string;
@@ -10,41 +10,44 @@ export interface ModelOption {
   rpmLimit: number;
   rpdLimit: number;
   description: string;
+  isFree?: boolean;
 }
 
 export const AVAILABLE_MODELS: ModelOption[] = [
+  // Google Gemini
   {
     id: "gemini-2.5-flash",
     name: "Gemini 2.5 Flash",
     provider: "gemini",
     rpmLimit: 15,
     rpdLimit: 1500,
-    description: "Fast, intelligent & versatile (Recommended default)",
+    description: "Fastest & stable (Recommended default, ~2s responses)",
   },
   {
-    id: "gemini-2.0-flash",
-    name: "Gemini 2.0 Flash",
+    id: "gemini-3.5-flash",
+    name: "Gemini 3.5 Flash",
     provider: "gemini",
     rpmLimit: 15,
     rpdLimit: 1500,
-    description: "Ultra-fast response with high rate limits",
+    description: "High volume throughput with fresh quota",
   },
   {
-    id: "gemini-1.5-flash",
-    name: "Gemini 1.5 Flash",
+    id: "gemini-3.8-flash",
+    name: "Gemini 3.8 Flash",
     provider: "gemini",
     rpmLimit: 15,
     rpdLimit: 1500,
-    description: "High-volume throughput & 1M token window",
+    description: "Experimental preview (frequently experiences Google 503 high demand)",
   },
   {
-    id: "gemini-1.5-pro",
-    name: "Gemini 1.5 Pro",
+    id: "gemini-flash-latest",
+    name: "Gemini Flash Latest",
     provider: "gemini",
-    rpmLimit: 2,
-    rpdLimit: 50,
-    description: "Deep reasoning & analysis (Free tier: 2 RPM)",
+    rpmLimit: 15,
+    rpdLimit: 1500,
+    description: "Points to Google's standard Flash model",
   },
+  // OpenAI
   {
     id: "gpt-4o",
     name: "GPT-4o",
@@ -61,6 +64,51 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     rpdLimit: 10000,
     description: "Affordable and fast OpenAI model",
   },
+  // OpenRouter Free & Popular Models
+  {
+    id: "openrouter/free",
+    name: "OpenRouter Free Router",
+    provider: "openrouter",
+    rpmLimit: 20,
+    rpdLimit: 200,
+    description: "Auto-routes to currently available free models with tool calling support (100% Free)",
+    isFree: true,
+  },
+  {
+    id: "google/gemma-4-31b-it:free",
+    name: "Google Gemma 4 31B (Free)",
+    provider: "openrouter",
+    rpmLimit: 20,
+    rpdLimit: 200,
+    description: "Next-gen open model by Google with tools support (Free)",
+    isFree: true,
+  },
+  {
+    id: "google/gemma-4-26b-a4b-it:free",
+    name: "Google Gemma 4 26B (Free)",
+    provider: "openrouter",
+    rpmLimit: 20,
+    rpdLimit: 200,
+    description: "Fast multimodal open model by Google (Free)",
+    isFree: true,
+  },
+  {
+    id: "nvidia/nemotron-3.5-super-vl:free",
+    name: "NVIDIA Nemotron 3.5 Super (Free)",
+    provider: "openrouter",
+    rpmLimit: 20,
+    rpdLimit: 200,
+    description: "High-capability reasoning model by NVIDIA (Free)",
+    isFree: true,
+  },
+  {
+    id: "meta-llama/llama-3.3-70b-instruct",
+    name: "Meta Llama 3.3 70B",
+    provider: "openrouter",
+    rpmLimit: 30,
+    rpdLimit: 500,
+    description: "Flagship 70B parameter open intelligence by Meta",
+  },
 ];
 
 export interface UserAiConfig {
@@ -69,6 +117,7 @@ export interface UserAiConfig {
   model: string;
   customDailyLimit: number;
   connectedAt?: string;
+  providerKeys?: Partial<Record<AiProvider, string>>;
 }
 
 interface StoredUsage {
@@ -93,7 +142,32 @@ export function getUserAiConfig(): UserAiConfig | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CONFIG);
     if (!raw) return null;
-    return JSON.parse(raw) as UserAiConfig;
+    const cfg = JSON.parse(raw) as UserAiConfig;
+    if (!cfg.providerKeys) {
+      cfg.providerKeys = { [cfg.provider]: cfg.apiKey };
+    }
+    // Auto-migrate retired models
+    if (
+      cfg.model === "gemini-2.0-flash" ||
+      cfg.model === "gemini-1.5-flash" ||
+      cfg.model === "gemini-1.5-pro"
+    ) {
+      cfg.model = "gemini-2.5-flash";
+      saveUserAiConfig(cfg);
+    }
+    if (
+      cfg.provider === "openrouter" &&
+      (cfg.model === "meta-llama/llama-3.3-70b-instruct:free" ||
+        cfg.model === "google/gemini-2.0-flash-exp:free" ||
+        cfg.model === "deepseek/deepseek-r1:free" ||
+        cfg.model === "deepseek/deepseek-chat:free" ||
+        cfg.model === "qwen/qwen-2.5-72b-instruct:free" ||
+        cfg.model === "mistralai/mistral-small-24b-instruct-2501:free")
+    ) {
+      cfg.model = "openrouter/free";
+      saveUserAiConfig(cfg);
+    }
+    return cfg;
   } catch {
     return null;
   }
