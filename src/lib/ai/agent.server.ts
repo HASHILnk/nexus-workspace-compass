@@ -7,7 +7,14 @@ import type { Database, Json } from "@/integrations/supabase/types";
 import { toMember, toProject, toTask } from "@/lib/db-map";
 import { daysUntil, isOverdue, projectStats } from "@/lib/selectors";
 import { canManage, ROLE_LABEL } from "@/lib/permissions";
-import { createTask, proposeChanges, proposePlan, resolveContext, updateTask, type OpsContext } from "./workspace-ops";
+import {
+  createTask,
+  proposeChanges,
+  proposePlan,
+  resolveContext,
+  updateTask,
+  type OpsContext,
+} from "./workspace-ops";
 
 const MODEL = "openai/gpt-6-astra";
 const json = (status: number, message: string) => Response.json({ error: message }, { status });
@@ -47,11 +54,13 @@ function createGeminiFetch() {
                 if (json.choices && Array.isArray(json.choices)) {
                   for (const choice of json.choices) {
                     if (choice.delta?.tool_calls && Array.isArray(choice.delta.tool_calls)) {
-                      choice.delta.tool_calls.forEach((tc: Record<string, unknown>, idx: number) => {
-                        if (tc["index"] === undefined) {
-                          tc["index"] = idx;
-                        }
-                      });
+                      choice.delta.tool_calls.forEach(
+                        (tc: Record<string, unknown>, idx: number) => {
+                          if (tc["index"] === undefined) {
+                            tc["index"] = idx;
+                          }
+                        },
+                      );
                     }
                   }
                 }
@@ -92,7 +101,8 @@ export function userClient(token: string) {
       headers: { Authorization: `Bearer ${token}` },
       fetch: (input, init) => {
         const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`)
+          h.delete("Authorization");
         h.set("apikey", key);
         return fetch(input, { ...init, headers: h });
       },
@@ -111,7 +121,10 @@ async function loadWorkspace(ctx: OpsContext) {
   if (err) throw new Error(err.message);
   const roles = new Map((r.data ?? []).map((x) => [x.user_id, x.role]));
   return {
-    members: (m.data ?? []).map((x) => ({ ...toMember(x), appRole: x.user_id ? roles.get(x.user_id) ?? null : null })),
+    members: (m.data ?? []).map((x) => ({
+      ...toMember(x),
+      appRole: x.user_id ? (roles.get(x.user_id) ?? null) : null,
+    })),
     projects: (p.data ?? []).map(toProject),
     tasks: (t.data ?? []).map(toTask),
   };
@@ -122,14 +135,23 @@ const priority = z.enum(["low", "medium", "high", "urgent"]);
 
 function buildTools(ctx: OpsContext) {
   const brief = (w: Awaited<ReturnType<typeof loadWorkspace>>, tk: ReturnType<typeof toTask>) => ({
-    id: tk.id, title: tk.title, project: w.projects.find((p) => p.id === tk.projectId)?.name ?? tk.projectId, projectId: tk.projectId,
-    assignee: w.members.find((m) => m.id === tk.assigneeId)?.name ?? null, assigneeId: tk.assigneeId, status: tk.status, priority: tk.priority,
-    dueDate: tk.dueDate, overdue: isOverdue(tk), daysUntilDue: daysUntil(tk.dueDate),
+    id: tk.id,
+    title: tk.title,
+    project: w.projects.find((p) => p.id === tk.projectId)?.name ?? tk.projectId,
+    projectId: tk.projectId,
+    assignee: w.members.find((m) => m.id === tk.assigneeId)?.name ?? null,
+    assigneeId: tk.assigneeId,
+    status: tk.status,
+    priority: tk.priority,
+    dueDate: tk.dueDate,
+    overdue: isOverdue(tk),
+    daysUntilDue: daysUntil(tk.dueDate),
   });
 
   return {
     get_team_workload: tool({
-      description: "Current workload of every team member, computed from live task assignments: open/active task counts, overdue, due in 7 days, and their self-set availability status. Use for 'who is free', 'who has nothing assigned', capacity and reminders.",
+      description:
+        "Current workload of every team member, computed from live task assignments: open/active task counts, overdue, due in 7 days, and their self-set availability status. Use for 'who is free', 'who has nothing assigned', capacity and reminders.",
       inputSchema: z.object({}),
       execute: async () => {
         const w = await loadWorkspace(ctx);
@@ -138,34 +160,64 @@ function buildTools(ctx: OpsContext) {
           members: w.members.map((m) => {
             const mine = w.tasks.filter((x) => x.assigneeId === m.id);
             const open = mine.filter((x) => x.status !== "done");
-            const active = open.filter((x) => x.status === "in_progress" || x.status === "in_review");
+            const active = open.filter(
+              (x) => x.status === "in_progress" || x.status === "in_review",
+            );
             return {
-              id: m.id, name: m.name, jobTitle: m.role, availabilityStatus: m.availability, hasAccount: !!m.userId,
-              openTasks: open.length, activeTasks: active.length, overdue: open.filter(isOverdue).length,
-              dueNext7Days: open.filter((x) => { const n = daysUntil(x.dueDate); return n >= 0 && n <= 7; }).length,
-              completedTotal: mine.length - open.length, hasNothingAssigned: open.length === 0,
+              id: m.id,
+              name: m.name,
+              jobTitle: m.role,
+              availabilityStatus: m.availability,
+              hasAccount: !!m.userId,
+              openTasks: open.length,
+              activeTasks: active.length,
+              overdue: open.filter(isOverdue).length,
+              dueNext7Days: open.filter((x) => {
+                const n = daysUntil(x.dueDate);
+                return n >= 0 && n <= 7;
+              }).length,
+              completedTotal: mine.length - open.length,
+              hasNothingAssigned: open.length === 0,
             };
           }),
         };
       },
     }),
     list_projects: tool({
-      description: "All projects with live progress, task counts, overdue counts, computed health and days to deadline.",
+      description:
+        "All projects with live progress, task counts, overdue counts, computed health and days to deadline.",
       inputSchema: z.object({}),
       execute: async () => {
         const w = await loadWorkspace(ctx);
         return w.projects.map((p) => {
           const s = projectStats(p, w.tasks);
-          return { id: p.id, name: p.name, status: p.status, health: s.health, progressPct: s.progress, done: s.done, total: s.total, overdue: s.overdue, deadline: p.deadline, daysToDeadline: daysUntil(p.deadline), owner: w.members.find((m) => m.id === p.ownerId)?.name ?? null, milestones: p.milestones };
+          return {
+            id: p.id,
+            name: p.name,
+            status: p.status,
+            health: s.health,
+            progressPct: s.progress,
+            done: s.done,
+            total: s.total,
+            overdue: s.overdue,
+            deadline: p.deadline,
+            daysToDeadline: daysUntil(p.deadline),
+            owner: w.members.find((m) => m.id === p.ownerId)?.name ?? null,
+            milestones: p.milestones,
+          };
         });
       },
     }),
     search_tasks: tool({
-      description: "Find tasks by any combination of filters. Pass null or omit filters you don't need. Returns up to 60 tasks.",
+      description:
+        "Find tasks by any combination of filters. Pass null or omit filters you don't need. Returns up to 60 tasks.",
       inputSchema: z.object({
         text: z.string().nullish().describe("Words to match in the task title"),
         projectId: z.string().nullish(),
-        assigneeId: z.string().nullish().describe("Member id; use 'unassigned' for tasks with no assignee"),
+        assigneeId: z
+          .string()
+          .nullish()
+          .describe("Member id; use 'unassigned' for tasks with no assignee"),
         status: status.nullish(),
         openOnly: z.boolean().nullish(),
         overdueOnly: z.boolean().nullish(),
@@ -173,13 +225,24 @@ function buildTools(ctx: OpsContext) {
       }),
       execute: async (f) => {
         const w = await loadWorkspace(ctx);
-        const words = (f.text ?? "").toLowerCase().split(/\s+/).filter((x) => x.length > 2);
-        const hits = w.tasks.filter((x) =>
-          (!f.projectId || x.projectId === f.projectId) &&
-          (!f.assigneeId || (f.assigneeId === "unassigned" ? !x.assigneeId : x.assigneeId === f.assigneeId)) &&
-          (!f.status || x.status === f.status) && (!f.openOnly || x.status !== "done") && (!f.overdueOnly || isOverdue(x)) &&
-          (f.dueWithinDays == null || (x.status !== "done" && daysUntil(x.dueDate) >= 0 && daysUntil(x.dueDate) <= f.dueWithinDays)) &&
-          (!words.length || words.some((wd) => x.title.toLowerCase().includes(wd))));
+        const words = (f.text ?? "")
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((x) => x.length > 2);
+        const hits = w.tasks.filter(
+          (x) =>
+            (!f.projectId || x.projectId === f.projectId) &&
+            (!f.assigneeId ||
+              (f.assigneeId === "unassigned" ? !x.assigneeId : x.assigneeId === f.assigneeId)) &&
+            (!f.status || x.status === f.status) &&
+            (!f.openOnly || x.status !== "done") &&
+            (!f.overdueOnly || isOverdue(x)) &&
+            (f.dueWithinDays == null ||
+              (x.status !== "done" &&
+                daysUntil(x.dueDate) >= 0 &&
+                daysUntil(x.dueDate) <= f.dueWithinDays)) &&
+            (!words.length || words.some((wd) => x.title.toLowerCase().includes(wd))),
+        );
         return { count: hits.length, tasks: hits.slice(0, 60).map((x) => brief(w, x)) };
       },
     }),
@@ -187,7 +250,11 @@ function buildTools(ctx: OpsContext) {
       description: "Recent activity feed entries (who did what), optionally for one project.",
       inputSchema: z.object({ projectId: z.string().nullish() }),
       execute: async ({ projectId }) => {
-        let q = ctx.sb.from("activity").select("actor_id, text, project_id, created_at").order("created_at", { ascending: false }).limit(30);
+        let q = ctx.sb
+          .from("activity")
+          .select("actor_id, text, project_id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(30);
         if (projectId) q = q.eq("project_id", projectId);
         const { data, error } = await q;
         if (error) return { error: error.message };
@@ -195,10 +262,16 @@ function buildTools(ctx: OpsContext) {
       },
     }),
     create_task: tool({
-      description: "Create ONE task and save it to the database, optionally assigned to a team member with a due date. Only call when project, title, assignee (or explicitly none) and due date are clear. Returns the saved record or an error.",
+      description:
+        "Create ONE task and save it to the database, optionally assigned to a team member with a due date. Only call when project, title, assignee (or explicitly none) and due date are clear. Returns the saved record or an error.",
       inputSchema: z.object({
-        title: z.string(), projectId: z.string(), assigneeId: z.string().nullish(), dueDate: z.string().nullish().describe("YYYY-MM-DD"),
-        priority: priority.nullish(), description: z.string().nullish(), status: status.nullish(),
+        title: z.string(),
+        projectId: z.string(),
+        assigneeId: z.string().nullish(),
+        dueDate: z.string().nullish().describe("YYYY-MM-DD"),
+        priority: priority.nullish(),
+        description: z.string().nullish(),
+        status: status.nullish(),
       }),
       execute: async (input) => {
         const r = await createTask(ctx, {
@@ -214,10 +287,16 @@ function buildTools(ctx: OpsContext) {
       },
     }),
     update_task: tool({
-      description: "Change ONE existing task (status, assignee, due date, priority or title) and save it. Pass null for fields that should not change. For 2+ tasks use propose_bulk_changes instead.",
+      description:
+        "Change ONE existing task (status, assignee, due date, priority or title) and save it. Pass null for fields that should not change. For 2+ tasks use propose_bulk_changes instead.",
       inputSchema: z.object({
-        taskId: z.string(), status: status.nullish(), assigneeId: z.string().nullish(), unassign: z.boolean().nullish(),
-        dueDate: z.string().nullish().describe("YYYY-MM-DD"), priority: priority.nullish(), title: z.string().nullish(),
+        taskId: z.string(),
+        status: status.nullish(),
+        assigneeId: z.string().nullish(),
+        unassign: z.boolean().nullish(),
+        dueDate: z.string().nullish().describe("YYYY-MM-DD"),
+        priority: priority.nullish(),
+        title: z.string().nullish(),
       }),
       execute: async (input) => {
         const r = await updateTask(ctx, {
@@ -233,33 +312,59 @@ function buildTools(ctx: OpsContext) {
       },
     }),
     propose_bulk_changes: tool({
-      description: "Propose changes to two or more tasks. Nothing is saved: the user sees a confirmation card and must approve. Use for any bulk or consequential change.",
+      description:
+        "Propose changes to two or more tasks. Nothing is saved: the user sees a confirmation card and must approve. Use for any bulk or consequential change.",
       inputSchema: z.object({
         summary: z.string(),
-        changes: z.array(z.object({
-          taskId: z.string(), status: status.nullish(), assigneeId: z.string().nullish(), unassign: z.boolean().nullish(),
-          dueDate: z.string().nullish(), priority: priority.nullish(), title: z.string().nullish(),
-        })),
+        changes: z.array(
+          z.object({
+            taskId: z.string(),
+            status: status.nullish(),
+            assigneeId: z.string().nullish(),
+            unassign: z.boolean().nullish(),
+            dueDate: z.string().nullish(),
+            priority: priority.nullish(),
+            title: z.string().nullish(),
+          }),
+        ),
       }),
       execute: async ({ summary, changes }) => {
-        const r = await proposeChanges(ctx, summary, changes.map((c) => ({
-          taskId: c.taskId,
-          status: c.status ?? null,
-          assigneeId: c.assigneeId ?? null,
-          unassign: c.unassign ?? null,
-          dueDate: c.dueDate ?? null,
-          priority: c.priority ?? null,
-          title: c.title ?? null,
-        })));
-        return r.ok ? { awaitingConfirmation: true, proposalId: r.proposalId, changes: r.changes } : { error: r.error };
+        const r = await proposeChanges(
+          ctx,
+          summary,
+          changes.map((c) => ({
+            taskId: c.taskId,
+            status: c.status ?? null,
+            assigneeId: c.assigneeId ?? null,
+            unassign: c.unassign ?? null,
+            dueDate: c.dueDate ?? null,
+            priority: c.priority ?? null,
+            title: c.title ?? null,
+          })),
+        );
+        return r.ok
+          ? { awaitingConfirmation: true, proposalId: r.proposalId, changes: r.changes }
+          : { error: r.error };
       },
     }),
     propose_project_plan: tool({
-      description: "Draft a new project plan (milestones, tasks, suggested owners, risks). Nothing is saved: the user can edit the plan in a card and confirm to create it.",
+      description:
+        "Draft a new project plan (milestones, tasks, suggested owners, risks). Nothing is saved: the user can edit the plan in a card and confirm to create it.",
       inputSchema: z.object({
-        name: z.string(), description: z.string(), weeks: z.number(),
+        name: z.string(),
+        description: z.string(),
+        weeks: z.number(),
         milestones: z.array(z.object({ title: z.string(), week: z.number() })),
-        tasks: z.array(z.object({ title: z.string(), priority, startWeek: z.number(), days: z.number(), assigneeId: z.string().nullish(), role: z.string().nullish() })),
+        tasks: z.array(
+          z.object({
+            title: z.string(),
+            priority,
+            startWeek: z.number(),
+            days: z.number(),
+            assigneeId: z.string().nullish(),
+            role: z.string().nullish(),
+          }),
+        ),
         risks: z.array(z.string()),
       }),
       execute: async (plan) => {
@@ -271,15 +376,27 @@ function buildTools(ctx: OpsContext) {
             role: t.role ?? "",
           })),
         });
-        return r.ok ? { awaitingConfirmation: true, proposalId: r.proposalId, plan: r.plan } : { error: r.error };
+        return r.ok
+          ? { awaitingConfirmation: true, proposalId: r.proposalId, plan: r.plan }
+          : { error: r.error };
       },
     }),
   };
 }
 
-function systemPrompt(ctx: OpsContext, w: Awaited<ReturnType<typeof loadWorkspace>>, tz: string, scopeProjectId: string | null) {
+function systemPrompt(
+  ctx: OpsContext,
+  w: Awaited<ReturnType<typeof loadWorkspace>>,
+  tz: string,
+  scopeProjectId: string | null,
+) {
   const now = new Date();
-  const local = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const local = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now);
   const scope = scopeProjectId ? w.projects.find((p) => p.id === scopeProjectId) : null;
   return `You are Nexus AI, the assistant inside the NEXUS project-management workspace.
@@ -328,12 +445,20 @@ export async function handleChat(request: Request): Promise<Response> {
     userModel?: string;
     userProvider?: string;
   };
-  try { body = await request.json(); } catch { return json(400, "Invalid request."); }
+  try {
+    body = await request.json();
+  } catch {
+    return json(400, "Invalid request.");
+  }
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const threadId = typeof body.threadId === "string" ? body.threadId : "";
   if (!messages.length || !threadId) return json(400, "Missing conversation.");
 
-  const { data: thread } = await sb.from("ai_threads").select("id, title").eq("id", threadId).maybeSingle();
+  const { data: thread } = await sb
+    .from("ai_threads")
+    .select("id, title")
+    .eq("id", threadId)
+    .maybeSingle();
   if (!thread) return json(404, "Conversation not found.");
 
   const userKey = request.headers.get("x-user-ai-key") || body.userApiKey;
@@ -341,7 +466,10 @@ export async function handleChat(request: Request): Promise<Response> {
   const userProvider = request.headers.get("x-user-ai-provider") || body.userProvider;
 
   if (!userKey || !userKey.trim()) {
-    return json(400, "Nexus AI is not configured. Please click 'Configure AI' in the top bar to set up your API key.");
+    return json(
+      400,
+      "Nexus AI is not configured. Please click 'Configure AI' in the top bar to set up your API key.",
+    );
   }
 
   const apiKey = userKey.trim();
@@ -372,23 +500,50 @@ export async function handleChat(request: Request): Promise<Response> {
 
   const ctx = await resolveContext(sb, userId, threadId);
   let w: Awaited<ReturnType<typeof loadWorkspace>>;
-  try { w = await loadWorkspace(ctx); } catch (e) { return json(500, `Couldn’t read the workspace: ${(e as Error).message}`); }
+  try {
+    w = await loadWorkspace(ctx);
+  } catch (e) {
+    return json(500, `Couldn’t read the workspace: ${(e as Error).message}`);
+  }
   let tz = "UTC";
-  try { if (body.timeZone) { new Intl.DateTimeFormat("en-US", { timeZone: body.timeZone }); tz = body.timeZone; } } catch { /* keep UTC */ }
+  try {
+    if (body.timeZone) {
+      new Intl.DateTimeFormat("en-US", { timeZone: body.timeZone });
+      tz = body.timeZone;
+    }
+  } catch {
+    /* keep UTC */
+  }
 
   // Save the incoming user message before calling the model.
   const last = messages[messages.length - 1]!;
   if (last.role === "user") {
-    const { error } = await sb.from("ai_messages").upsert({ thread_id: threadId, user_id: userId, ui_id: last.id, message: last as unknown as Json }, { onConflict: "thread_id,ui_id" });
+    const { error } = await sb
+      .from("ai_messages")
+      .upsert(
+        { thread_id: threadId, user_id: userId, ui_id: last.id, message: last as unknown as Json },
+        { onConflict: "thread_id,ui_id" },
+      );
     if (error) return json(500, `Couldn’t save your message: ${error.message}`);
     if (thread.title === "New conversation") {
-      const text = last.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ").trim();
-      await sb.from("ai_threads").update({ title: text.slice(0, 60) || "New conversation", updated_at: new Date().toISOString() }).eq("id", threadId);
+      const text = last.parts
+        .map((p) => (p.type === "text" ? p.text : ""))
+        .join(" ")
+        .trim();
+      await sb
+        .from("ai_threads")
+        .update({
+          title: text.slice(0, 60) || "New conversation",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", threadId);
     }
   }
 
   // Replay history without earlier reasoning items (stateless gateway).
-  const history = messages.map((m) => (m.role === "assistant" ? { ...m, parts: m.parts.filter((p) => p.type !== "reasoning") } : m));
+  const history = messages.map((m) =>
+    m.role === "assistant" ? { ...m, parts: m.parts.filter((p) => p.type !== "reasoning") } : m,
+  );
 
   let provider;
   let modelInstance;
@@ -459,7 +614,12 @@ export async function handleChat(request: Request): Promise<Response> {
         msg.includes("user not found") ||
         msg.includes("access denied");
 
-      if (code === 402 || msg.includes("402") || msg.includes("credits") || msg.includes("payment")) {
+      if (
+        code === 402 ||
+        msg.includes("402") ||
+        msg.includes("credits") ||
+        msg.includes("payment")
+      ) {
         if (isOpenRouter) {
           return "Your OpenRouter account requires credits for this model. Switch to 'OpenRouter Free Router' in AI configuration for 100% free usage.";
         }
@@ -523,12 +683,25 @@ export async function handleChat(request: Request): Promise<Response> {
         return "The AI service is temporarily unavailable (503). Please try again shortly.";
       }
 
-      return err?.message ? `Nexus AI error: ${err.message}` : "Nexus AI hit an error answering that. Please try again.";
+      return err?.message
+        ? `Nexus AI error: ${err.message}`
+        : "Nexus AI hit an error answering that. Please try again.";
     },
     onFinish: async ({ responseMessage }) => {
-      const { error } = await sb.from("ai_messages").upsert({ thread_id: threadId, user_id: userId, ui_id: responseMessage.id, message: responseMessage as unknown as Json }, { onConflict: "thread_id,ui_id" });
+      const { error } = await sb.from("ai_messages").upsert(
+        {
+          thread_id: threadId,
+          user_id: userId,
+          ui_id: responseMessage.id,
+          message: responseMessage as unknown as Json,
+        },
+        { onConflict: "thread_id,ui_id" },
+      );
       if (error) console.error("[nexus-ai] failed to save assistant message", error.message);
-      await sb.from("ai_threads").update({ updated_at: new Date().toISOString() }).eq("id", threadId);
+      await sb
+        .from("ai_threads")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", threadId);
     },
   });
   return response;

@@ -6,7 +6,9 @@ import { AppShell } from "@/components/nexus/app-shell";
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.user) throw redirect({ to: "/auth", search: { redirect: location.pathname } });
   },
   component: () => (

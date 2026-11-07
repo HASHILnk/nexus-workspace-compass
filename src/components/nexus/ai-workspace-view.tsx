@@ -3,7 +3,13 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, getToolName, isToolUIPart, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  getToolName,
+  isToolUIPart,
+  type UIMessage,
+  type TextUIPart,
+} from "ai";
 import {
   ArrowUp,
   ArrowUpRight,
@@ -50,11 +56,30 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { supabase } from "@/integrations/supabase/client";
 import { useStore } from "@/lib/store";
@@ -63,7 +88,12 @@ import { ROLE_LABEL } from "@/lib/permissions";
 import { createThread, deleteThread, getThreadMessages, listThreads } from "@/lib/ai.functions";
 import { BulkChangesCard, PlanCard, ProjectsMini, SavedTaskCard, TaskRows } from "./ai-cards";
 import { SarvamVoiceModal } from "./sarvam-voice-modal";
-import { getUserAiConfig, openAiConfigDialog, recordAiRequest, useUserAiConfig } from "@/lib/ai/user-ai-config";
+import {
+  getUserAiConfig,
+  openAiConfigDialog,
+  recordAiRequest,
+  useUserAiConfig,
+} from "@/lib/ai/user-ai-config";
 import { SUPPORTED_VOICE_LANGUAGES, useSpeechToText, useTextToSpeech } from "@/lib/ai/voice";
 import { MemberAvatar, colorClass } from "./bits";
 import { cn } from "@/lib/utils";
@@ -85,7 +115,8 @@ const SUGGESTIONS = [
     id: "task-planning",
     title: "Task Planning",
     desc: "Create and assign tasks from natural-language instructions.",
-    prompt: "Help me plan and break down the top priorities into assigned tasks for our current milestone.",
+    prompt:
+      "Help me plan and break down the top priorities into assigned tasks for our current milestone.",
   },
 ];
 
@@ -258,7 +289,11 @@ function WorkspaceHeader({
           className="hidden md:flex size-8 rounded-lg text-[#777777] hover:text-[#111111] hover:bg-[#F0F0F0] items-center justify-center transition-colors"
           title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
-          {sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+          {sidebarOpen ? (
+            <PanelLeftClose className="size-4" />
+          ) : (
+            <PanelLeftOpen className="size-4" />
+          )}
         </button>
 
         <span className="text-xs font-medium text-[#777777]">Nexus AI Workspace</span>
@@ -272,7 +307,9 @@ function WorkspaceHeader({
           className="h-7 px-2.5 rounded-full border border-[#EAEAEA] bg-[#FAFAFA] hover:bg-[#F0F0F0] text-[#111111] text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
           title="Click to configure AI models and API keys"
         >
-          <span className={cn("size-2 rounded-full", isConnected ? "bg-emerald-500" : "bg-amber-500")} />
+          <span
+            className={cn("size-2 rounded-full", isConnected ? "bg-emerald-500" : "bg-amber-500")}
+          />
           <span className="font-medium text-[11px] truncate max-w-[140px]">
             {isConnected
               ? stats.model.name.replace("Gemini ", "").replace(" (Free)", "")
@@ -314,7 +351,10 @@ function WorkspaceHeader({
               <History className="size-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72 p-1.5 bg-white border border-[#EAEAEA] shadow-lg rounded-xl z-50">
+          <DropdownMenuContent
+            align="end"
+            className="w-72 p-1.5 bg-white border border-[#EAEAEA] shadow-lg rounded-xl z-50"
+          >
             <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-[#F0F0F0] mb-1">
               <span className="text-xs font-semibold text-[#111111]">Conversations</span>
               <button
@@ -328,7 +368,9 @@ function WorkspaceHeader({
             </div>
             <div className="max-h-72 overflow-y-auto space-y-0.5">
               {threads.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-[#888888]">No conversations yet</div>
+                <div className="px-3 py-4 text-center text-xs text-[#888888]">
+                  No conversations yet
+                </div>
               ) : (
                 threads.map((t) => (
                   <div
@@ -337,7 +379,7 @@ function WorkspaceHeader({
                       "group flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition-colors cursor-pointer",
                       t.id === activeThreadId
                         ? "bg-[#F4F4F5] text-[#111111] font-medium"
-                        : "text-[#444444] hover:bg-[#FAFAFA] hover:text-[#111111]"
+                        : "text-[#444444] hover:bg-[#FAFAFA] hover:text-[#111111]",
                     )}
                     onClick={() => onSelectThread(t.id)}
                   >
@@ -378,15 +420,11 @@ function AiLimitCircle() {
     highestRatio >= 0.85
       ? "stroke-rose-500"
       : highestRatio >= 0.6
-      ? "stroke-amber-500"
-      : "stroke-emerald-500";
+        ? "stroke-amber-500"
+        : "stroke-emerald-500";
 
   const statusBg =
-    highestRatio >= 0.85
-      ? "bg-rose-500"
-      : highestRatio >= 0.6
-      ? "bg-amber-500"
-      : "bg-emerald-500";
+    highestRatio >= 0.85 ? "bg-rose-500" : highestRatio >= 0.6 ? "bg-amber-500" : "bg-emerald-500";
 
   // Radius 6.5 -> Circumference ~40.84
   const radius = 6.5;
@@ -428,7 +466,7 @@ function AiLimitCircle() {
             <span
               className={cn(
                 "absolute size-1.5 rounded-full transition-transform duration-200 group-hover:scale-125",
-                statusBg
+                statusBg,
               )}
             />
           </button>
@@ -459,7 +497,8 @@ function AiLimitCircle() {
               <div className="flex items-center justify-between text-[11px] mb-1">
                 <span className="text-[#666666] font-medium">Rate Limit (60s)</span>
                 <span className="font-semibold text-[#111111]">
-                  {stats.rpmCount} <span className="font-normal text-[#888888]">/ {stats.rpmLimit} RPM</span>
+                  {stats.rpmCount}{" "}
+                  <span className="font-normal text-[#888888]">/ {stats.rpmLimit} RPM</span>
                 </span>
               </div>
               <div className="h-1.5 w-full bg-[#F0F0F0] rounded-full overflow-hidden">
@@ -469,10 +508,12 @@ function AiLimitCircle() {
                     rpmRatio >= 0.85
                       ? "bg-rose-500"
                       : rpmRatio >= 0.6
-                      ? "bg-amber-500"
-                      : "bg-emerald-500"
+                        ? "bg-amber-500"
+                        : "bg-emerald-500",
                   )}
-                  style={{ width: `${Math.min(100, Math.max(rpmRatio > 0 ? 6 : 0, rpmRatio * 100))}%` }}
+                  style={{
+                    width: `${Math.min(100, Math.max(rpmRatio > 0 ? 6 : 0, rpmRatio * 100))}%`,
+                  }}
                 />
               </div>
             </div>
@@ -482,7 +523,8 @@ function AiLimitCircle() {
               <div className="flex items-center justify-between text-[11px] mb-1">
                 <span className="text-[#666666] font-medium">Daily Limit</span>
                 <span className="font-semibold text-[#111111]">
-                  {stats.dailyCount} <span className="font-normal text-[#888888]">/ {stats.dailyLimit} Day</span>
+                  {stats.dailyCount}{" "}
+                  <span className="font-normal text-[#888888]">/ {stats.dailyLimit} Day</span>
                 </span>
               </div>
               <div className="h-1.5 w-full bg-[#F0F0F0] rounded-full overflow-hidden">
@@ -492,10 +534,12 @@ function AiLimitCircle() {
                     dailyRatio >= 0.85
                       ? "bg-rose-500"
                       : dailyRatio >= 0.6
-                      ? "bg-amber-500"
-                      : "bg-emerald-500"
+                        ? "bg-amber-500"
+                        : "bg-emerald-500",
                   )}
-                  style={{ width: `${Math.min(100, Math.max(dailyRatio > 0 ? 6 : 0, dailyRatio * 100))}%` }}
+                  style={{
+                    width: `${Math.min(100, Math.max(dailyRatio > 0 ? 6 : 0, dailyRatio * 100))}%`,
+                  }}
                 />
               </div>
             </div>
@@ -558,9 +602,8 @@ function WorkspaceBody({ threadId, sessionCounter = 0, onThreadCreated }: Worksp
     threadId && q.data?.found ? (JSON.parse(q.data.messagesJson) as UIMessage[]) : [];
 
   // When a thread was just created during this active chat session, preserve the session key so it doesn't unmount
-  const sessionKey = isNewInSession || !threadId
-    ? `chat-session-${sessionCounter}`
-    : `thread-${threadId}`;
+  const sessionKey =
+    isNewInSession || !threadId ? `chat-session-${sessionCounter}` : `thread-${threadId}`;
 
   return (
     <WorkspaceChatSession
@@ -578,7 +621,11 @@ interface WorkspaceChatSessionProps {
   onThreadCreated: (id: string) => void;
 }
 
-function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: WorkspaceChatSessionProps) {
+function WorkspaceChatSession({
+  threadId,
+  initialMessages,
+  onThreadCreated,
+}: WorkspaceChatSessionProps) {
   const { state, refresh } = useStore();
   const me = memberById(state, state.meId);
   const qc = useQueryClient();
@@ -661,7 +708,7 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
           };
         },
       }),
-    []
+    [],
   );
 
   const {
@@ -675,8 +722,14 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
     onTranscript: (spoken) => setInput(spoken),
   });
 
-  const { isSpeaking, currentSpeakingId, autoPlay, toggleAutoPlay, speak, stop: stopSpeech } =
-    useTextToSpeech();
+  const {
+    isSpeaking,
+    currentSpeakingId,
+    autoPlay,
+    toggleAutoPlay,
+    speak,
+    stop: stopSpeech,
+  } = useTextToSpeech();
 
   const [chatSessionId] = useState(
     () =>
@@ -685,7 +738,7 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
         typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
           ? crypto.randomUUID()
           : Math.random().toString(36).slice(2) + Date.now().toString(36)
-      }`
+      }`,
   );
 
   const { messages, sendMessage, status, stop, error, setMessages, regenerate } = useChat({
@@ -793,7 +846,8 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
   const lastIsAssistant = lastMessage?.role === "assistant";
   const hasMessages = messages.length > 0;
   const currentLang =
-    SUPPORTED_VOICE_LANGUAGES.find((l) => l.code === selectedLanguage) || SUPPORTED_VOICE_LANGUAGES[0]!;
+    SUPPORTED_VOICE_LANGUAGES.find((l) => l.code === selectedLanguage) ||
+    SUPPORTED_VOICE_LANGUAGES[0]!;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-white overflow-hidden">
@@ -851,8 +905,13 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                       <Languages className="size-4 stroke-[1.8]" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40 text-xs bg-white border-[#EAEAEA]">
-                    <DropdownMenuLabel className="text-[10px] text-[#777777]">Spoken Language</DropdownMenuLabel>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-40 text-xs bg-white border-[#EAEAEA]"
+                  >
+                    <DropdownMenuLabel className="text-[10px] text-[#777777]">
+                      Spoken Language
+                    </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {SUPPORTED_VOICE_LANGUAGES.map((lang) => (
                       <DropdownMenuItem
@@ -860,7 +919,7 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                         onClick={() => setSelectedLanguage(lang.code)}
                         className={cn(
                           "flex items-center justify-between text-xs cursor-pointer",
-                          selectedLanguage === lang.code && "font-semibold text-emerald-700"
+                          selectedLanguage === lang.code && "font-semibold text-emerald-700",
                         )}
                       >
                         <span>{lang.name}</span>
@@ -878,11 +937,15 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                     "p-2 rounded-full transition-all cursor-pointer",
                     isListening
                       ? "bg-red-500 text-white animate-pulse"
-                      : "text-[#777777] hover:text-[#111111] hover:bg-[#F0F0F0]"
+                      : "text-[#777777] hover:text-[#111111] hover:bg-[#F0F0F0]",
                   )}
                   title={isListening ? "Listening... click to stop" : "Voice dictation"}
                 >
-                  {isListening ? <MicOff className="size-4" /> : <Mic className="size-4 stroke-[1.8]" />}
+                  {isListening ? (
+                    <MicOff className="size-4" />
+                  ) : (
+                    <Mic className="size-4 stroke-[1.8]" />
+                  )}
                 </button>
 
                 {/* Circular Send Button */}
@@ -894,7 +957,7 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                     "size-8 rounded-full flex items-center justify-center transition-all cursor-pointer",
                     input.trim()
                       ? "bg-[#111111] text-white hover:bg-black scale-100 shadow-xs"
-                      : "bg-[#F0F0F0] text-[#AAAAAA] cursor-not-allowed"
+                      : "bg-[#F0F0F0] text-[#AAAAAA] cursor-not-allowed",
                   )}
                   title="Send message (Enter)"
                 >
@@ -944,20 +1007,23 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
 
                 if (m.role === "user") {
                   const userText = m.parts
-                    .filter((p) => p.type === "text" && Boolean((p as any).text))
-                    .map((p) => (p as any).text || "")
+                    .filter((p): p is TextUIPart => p.type === "text" && Boolean(p.text))
+                    .map((p) => p.text || "")
                     .join("\n");
 
                   return (
-                    <div key={m.id} className="group/user flex items-start justify-end gap-2.5 w-full">
+                    <div
+                      key={m.id}
+                      className="group/user flex items-start justify-end gap-2.5 w-full"
+                    >
                       <div className="relative flex flex-col items-end max-w-[85%] sm:max-w-[78%]">
                         <div className="rounded-2xl rounded-tr-xs bg-[#111111] text-white px-4.5 py-3 text-sm leading-relaxed shadow-xs font-normal selection:bg-white/20">
                           {m.parts.map((p, i) =>
                             p.type === "text" ? (
                               <span key={i} className="whitespace-pre-wrap">
-                                {(p as any).text}
+                                {p.text}
                               </span>
-                            ) : null
+                            ) : null,
                           )}
                         </div>
                         <div className="opacity-0 group-hover/user:opacity-100 transition-opacity mt-1 flex items-center gap-1.5 text-[11px] text-[#888888] px-1">
@@ -981,18 +1047,25 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                           </button>
                         </div>
                       </div>
-                      <MemberAvatar member={me} size="sm" className="mt-0.5 ring-1 ring-black/5 shadow-2xs shrink-0" />
+                      <MemberAvatar
+                        member={me}
+                        size="sm"
+                        className="mt-0.5 ring-1 ring-black/5 shadow-2xs shrink-0"
+                      />
                     </div>
                   );
                 }
 
                 const fullText = m.parts
-                  .filter((p) => p.type === "text" && Boolean((p as any).text))
-                  .map((p) => (p as any).text || "")
+                  .filter((p): p is TextUIPart => p.type === "text" && Boolean(p.text))
+                  .map((p) => p.text || "")
                   .join("\n\n");
 
                 return (
-                  <div key={m.id} className="group/assistant w-full space-y-2.5 animate-in fade-in duration-200">
+                  <div
+                    key={m.id}
+                    className="group/assistant w-full space-y-2.5 animate-in fade-in duration-200"
+                  >
                     {/* Assistant Header: Always single per prompt turn */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -1000,13 +1073,15 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                           <Sparkles
                             className={cn(
                               "size-3.5 text-emerald-400",
-                              isLast && busy && "animate-spin"
+                              isLast && busy && "animate-spin",
                             )}
                             style={isLast && busy ? { animationDuration: "3s" } : undefined}
                           />
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-[#111111] tracking-tight">Nexus AI</span>
+                          <span className="text-xs font-semibold text-[#111111] tracking-tight">
+                            Nexus AI
+                          </span>
                           <span className="text-[10px] text-[#666666] font-medium bg-[#F4F4F5] px-2 py-0.5 rounded-full border border-[#EAEAEA]">
                             Workspace Assistant
                           </span>
@@ -1046,9 +1121,18 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                       {isLast && busy && (
                         <div className="rounded-xl border border-[#EAEAEA] bg-[#FAFAFA] px-3.5 py-2 text-xs text-[#666666] flex items-center gap-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] animate-in fade-in duration-200">
                           <div className="flex space-x-1">
-                            <div className="size-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                            <div className="size-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                            <div className="size-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                            <div
+                              className="size-1.5 rounded-full bg-emerald-500 animate-bounce"
+                              style={{ animationDelay: "0ms" }}
+                            />
+                            <div
+                              className="size-1.5 rounded-full bg-emerald-500 animate-bounce"
+                              style={{ animationDelay: "150ms" }}
+                            />
+                            <div
+                              className="size-1.5 rounded-full bg-emerald-500 animate-bounce"
+                              style={{ animationDelay: "300ms" }}
+                            />
                           </div>
                           <span className="text-[12px] text-[#555555]">
                             Analyzing workspace data & drafting response…
@@ -1071,7 +1155,9 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                                 {copiedId === m.id ? (
                                   <>
                                     <Check className="size-3.5 text-emerald-600" />
-                                    <span className="text-[11px] font-medium text-emerald-600">Copied</span>
+                                    <span className="text-[11px] font-medium text-emerald-600">
+                                      Copied
+                                    </span>
                                   </>
                                 ) : (
                                   <>
@@ -1097,9 +1183,13 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                                   "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-colors cursor-pointer",
                                   currentSpeakingId === m.id
                                     ? "bg-emerald-50 text-emerald-700 font-medium"
-                                    : "text-[#666666] hover:bg-[#F4F4F5] hover:text-[#111111]"
+                                    : "text-[#666666] hover:bg-[#F4F4F5] hover:text-[#111111]",
                                 )}
-                                title={currentSpeakingId === m.id ? "Stop speaking" : "Listen to response"}
+                                title={
+                                  currentSpeakingId === m.id
+                                    ? "Stop speaking"
+                                    : "Listen to response"
+                                }
                               >
                                 {currentSpeakingId === m.id ? (
                                   <>
@@ -1123,14 +1213,14 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                                 "p-1.5 rounded-lg transition-colors cursor-pointer",
                                 feedbackMap[m.id] === "up"
                                   ? "bg-emerald-50 text-emerald-600"
-                                  : "text-[#888888] hover:bg-[#F4F4F5] hover:text-[#111111]"
+                                  : "text-[#888888] hover:bg-[#F4F4F5] hover:text-[#111111]",
                               )}
                               title="Helpful"
                             >
                               <ThumbsUp
                                 className={cn(
                                   "size-3.5",
-                                  feedbackMap[m.id] === "up" && "fill-emerald-600"
+                                  feedbackMap[m.id] === "up" && "fill-emerald-600",
                                 )}
                               />
                             </button>
@@ -1143,14 +1233,14 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                                 "p-1.5 rounded-lg transition-colors cursor-pointer",
                                 feedbackMap[m.id] === "down"
                                   ? "bg-amber-50 text-amber-600"
-                                  : "text-[#888888] hover:bg-[#F4F4F5] hover:text-[#111111]"
+                                  : "text-[#888888] hover:bg-[#F4F4F5] hover:text-[#111111]",
                               )}
                               title="Not helpful"
                             >
                               <ThumbsDown
                                 className={cn(
                                   "size-3.5",
-                                  feedbackMap[m.id] === "down" && "fill-amber-600"
+                                  feedbackMap[m.id] === "down" && "fill-amber-600",
                                 )}
                               />
                             </button>
@@ -1182,7 +1272,10 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
               {busy && !lastIsAssistant && (
                 <div className="flex items-start gap-2.5 pl-0 py-2 animate-in fade-in duration-300">
                   <div className="size-7 rounded-xl bg-gradient-to-br from-[#1E293B] to-[#0F172A] text-white flex items-center justify-center shadow-xs">
-                    <Sparkles className="size-3.5 text-emerald-400 animate-spin" style={{ animationDuration: "3s" }} />
+                    <Sparkles
+                      className="size-3.5 text-emerald-400 animate-spin"
+                      style={{ animationDuration: "3s" }}
+                    />
                   </div>
                   <div className="space-y-1.5 pt-0.5">
                     <div className="flex items-center gap-2">
@@ -1194,9 +1287,18 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                     </div>
                     <div className="rounded-xl border border-[#EAEAEA] bg-[#FAFAFA] px-3.5 py-2 text-xs text-[#666666] flex items-center gap-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                       <div className="flex space-x-1">
-                        <div className="size-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                        <div className="size-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                        <div className="size-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                        <div
+                          className="size-1.5 rounded-full bg-emerald-500 animate-bounce"
+                          style={{ animationDelay: "0ms" }}
+                        />
+                        <div
+                          className="size-1.5 rounded-full bg-emerald-500 animate-bounce"
+                          style={{ animationDelay: "150ms" }}
+                        />
+                        <div
+                          className="size-1.5 rounded-full bg-emerald-500 animate-bounce"
+                          style={{ animationDelay: "300ms" }}
+                        />
                       </div>
                       <span className="text-[12px] text-[#555555]">
                         Analyzing workspace data & drafting response…
@@ -1264,7 +1366,7 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                         "p-1 rounded-full transition-all cursor-pointer",
                         isListening
                           ? "bg-red-500 text-white animate-pulse"
-                          : "text-[#777777] hover:text-[#111111] hover:bg-[#F0F0F0]/70"
+                          : "text-[#777777] hover:text-[#111111] hover:bg-[#F0F0F0]/70",
                       )}
                       title={isListening ? "Listening... click to stop" : "Voice input"}
                     >
@@ -1279,7 +1381,7 @@ function WorkspaceChatSession({ threadId, initialMessages, onThreadCreated }: Wo
                         "size-6.5 rounded-full flex items-center justify-center transition-all cursor-pointer",
                         input.trim()
                           ? "bg-[#111111] text-white hover:bg-black scale-100 shadow-2xs"
-                          : "bg-[#F0F0F0] text-[#AAAAAA] cursor-not-allowed"
+                          : "bg-[#F0F0F0] text-[#AAAAAA] cursor-not-allowed",
                       )}
                       title="Send message (Enter)"
                     >
@@ -1324,7 +1426,7 @@ function ThinkingBlock({ text }: { text: string }) {
         <ChevronDown
           className={cn(
             "size-3.5 text-[#888888] transition-transform duration-200",
-            open && "rotate-180 text-[#222222]"
+            open && "rotate-180 text-[#222222]",
           )}
         />
       </button>
@@ -1354,7 +1456,10 @@ type AnyToolPart = Extract<UIMessage["parts"][number], { toolCallId: string }>;
 function ToolPart({ part }: { part: AnyToolPart }) {
   const name = getToolName(part);
   const out =
-    part.state === "output-available" && part.output && typeof part.output === "object" && !Array.isArray(part.output)
+    part.state === "output-available" &&
+    part.output &&
+    typeof part.output === "object" &&
+    !Array.isArray(part.output)
       ? (part.output as ToolOut)
       : null;
 
@@ -1363,7 +1468,11 @@ function ToolPart({ part }: { part: AnyToolPart }) {
     if ((name === "create_task" || name === "update_task") && out.saved) {
       card = <SavedTaskCard task={out.task as never} />;
     } else if ((name === "create_task" || name === "update_task") && out.error) {
-      card = <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">Not saved: {String(out.error)}</p>;
+      card = (
+        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          Not saved: {String(out.error)}
+        </p>
+      );
     } else if (name === "propose_bulk_changes" && out.proposalId) {
       card = <BulkChangesCard proposalId={String(out.proposalId)} changes={out.changes as never} />;
     } else if (name === "propose_project_plan" && out.proposalId) {

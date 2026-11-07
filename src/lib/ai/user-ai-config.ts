@@ -71,7 +71,8 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     provider: "openrouter",
     rpmLimit: 20,
     rpdLimit: 200,
-    description: "Auto-routes to currently available free models with tool calling support (100% Free)",
+    description:
+      "Auto-routes to currently available free models with tool calling support (100% Free)",
     isFree: true,
   },
   {
@@ -177,7 +178,7 @@ export function saveUserAiConfig(config: UserAiConfig) {
   if (typeof window === "undefined") return;
   localStorage.setItem(
     STORAGE_KEY_CONFIG,
-    JSON.stringify({ ...config, connectedAt: new Date().toISOString() })
+    JSON.stringify({ ...config, connectedAt: new Date().toISOString() }),
   );
   window.dispatchEvent(new Event(EVENT_NAME));
 }
@@ -199,9 +200,7 @@ export function getStoredUsage(): StoredUsage {
     if (!raw) return { date: today, dailyCount: 0, recentTimestamps: [] };
     const parsed = JSON.parse(raw) as StoredUsage;
     const now = Date.now();
-    const validTimestamps = (parsed.recentTimestamps || []).filter(
-      (ts) => now - ts < 60_000
-    );
+    const validTimestamps = (parsed.recentTimestamps || []).filter((ts) => now - ts < 60_000);
     if (parsed.date !== today) {
       return { date: today, dailyCount: 0, recentTimestamps: validTimestamps };
     }
@@ -215,9 +214,7 @@ export function recordAiRequest() {
   if (typeof window === "undefined") return;
   const current = getStoredUsage();
   const now = Date.now();
-  const updatedTimestamps = [...current.recentTimestamps, now].filter(
-    (ts) => now - ts < 60_000
-  );
+  const updatedTimestamps = [...current.recentTimestamps, now].filter((ts) => now - ts < 60_000);
   const updated: StoredUsage = {
     date: current.date,
     dailyCount: current.dailyCount + 1,
@@ -274,8 +271,7 @@ export function useUserAiConfig() {
   }, [refresh]);
 
   const activeModelId = config?.model || "gemini-2.5-flash";
-  const activeModel =
-    AVAILABLE_MODELS.find((m) => m.id === activeModelId) || AVAILABLE_MODELS[0]!;
+  const activeModel = AVAILABLE_MODELS.find((m) => m.id === activeModelId) || AVAILABLE_MODELS[0]!;
 
   const rpmLimit = activeModel.rpmLimit;
   const rpmCount = usage.recentTimestamps.length;

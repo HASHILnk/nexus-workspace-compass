@@ -97,8 +97,8 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
 
       sessionRef.current = session;
       await session.startCall();
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to start Sarvam voice call.");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to start Sarvam voice call.");
       setCallState("IDLE");
     }
   };
@@ -138,7 +138,10 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
               <div>
                 <DialogTitle className="text-sm font-semibold flex items-center gap-1.5">
                   <span>Nexus Voice</span>
-                  <Badge variant="outline" className="h-4 px-1 text-[9px] font-normal border-primary/30 text-primary">
+                  <Badge
+                    variant="outline"
+                    className="h-4 px-1 text-[9px] font-normal border-primary/30 text-primary"
+                  >
                     Sarvam AI (Bulbul V4)
                   </Badge>
                 </DialogTitle>
@@ -168,8 +171,8 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
                   callState === "SPEAKING"
                     ? "size-28 bg-primary/20 animate-ping"
                     : callState === "LISTENING"
-                    ? "size-24 bg-emerald-500/20 animate-pulse"
-                    : "size-20 bg-amber-500/20"
+                      ? "size-24 bg-emerald-500/20 animate-pulse"
+                      : "size-20 bg-amber-500/20",
                 )}
               />
             )}
@@ -181,10 +184,10 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
                 callState === "SPEAKING"
                   ? "bg-gradient-to-tr from-primary to-emerald-400 text-primary-foreground scale-105"
                   : callState === "LISTENING"
-                  ? "bg-gradient-to-tr from-emerald-500 to-teal-400 text-white"
-                  : callState === "CONNECTING"
-                  ? "bg-muted text-muted-foreground animate-pulse"
-                  : "bg-muted text-muted-foreground"
+                    ? "bg-gradient-to-tr from-emerald-500 to-teal-400 text-white"
+                    : callState === "CONNECTING"
+                      ? "bg-muted text-muted-foreground animate-pulse"
+                      : "bg-muted text-muted-foreground",
               )}
             >
               {callState === "SPEAKING" ? (
@@ -202,12 +205,12 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
               {callState === "SPEAKING"
                 ? "Agent is speaking…"
                 : callState === "LISTENING"
-                ? "Listening to you… (Speak anytime)"
-                : callState === "CONNECTING"
-                ? "Connecting to Sarvam voice pipeline…"
-                : callState === "DISCONNECTED"
-                ? "Call ended"
-                : "Ready to start voice conversation"}
+                  ? "Listening to you… (Speak anytime)"
+                  : callState === "CONNECTING"
+                    ? "Connecting to Sarvam voice pipeline…"
+                    : callState === "DISCONNECTED"
+                      ? "Call ended"
+                      : "Ready to start voice conversation"}
             </p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Caller: {me?.name || "Team Member"} · Malayalam & English supported
@@ -222,7 +225,8 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
               <Sparkles className="size-4 mb-1 text-primary opacity-60" />
               <p>Click "Start Call" to begin speaking live with Nexus Voice.</p>
               <p className="text-[10px] mt-1 text-muted-foreground/80">
-                You can ask questions, assign tasks, or check project status in natural Malayalam or English.
+                You can ask questions, assign tasks, or check project status in natural Malayalam or
+                English.
               </p>
             </div>
           ) : (
@@ -231,7 +235,7 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
                 key={t.id}
                 className={cn(
                   "flex gap-2 max-w-[88%]",
-                  t.role === "user" ? "ml-auto justify-end" : "mr-auto justify-start"
+                  t.role === "user" ? "ml-auto justify-end" : "mr-auto justify-start",
                 )}
               >
                 {t.role === "bot" && (
@@ -244,7 +248,7 @@ export function SarvamVoiceModal({ open, onOpenChange }: SarvamVoiceModalProps) 
                     "rounded-xl px-3 py-1.5 text-xs shadow-xs",
                     t.role === "user"
                       ? "bg-primary text-primary-foreground rounded-br-xs"
-                      : "bg-muted/70 text-foreground rounded-bl-xs"
+                      : "bg-muted/70 text-foreground rounded-bl-xs",
                   )}
                 >
                   <p className="whitespace-pre-wrap">{t.content}</p>

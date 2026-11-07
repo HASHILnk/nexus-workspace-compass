@@ -30,6 +30,44 @@ export function cleanTextForSpeech(raw: string): string {
     .trim();
 }
 
+interface SpeechRecognitionEvent extends Event {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string;
+  readonly message?: string;
+}
+
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: ((this: SpeechRecognitionInstance, ev: Event) => void) | null;
+  onresult: ((this: SpeechRecognitionInstance, ev: SpeechRecognitionEvent) => void) | null;
+  onerror: ((this: SpeechRecognitionInstance, ev: SpeechRecognitionErrorEvent) => void) | null;
+  onend: ((this: SpeechRecognitionInstance, ev: Event) => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionInstance;
+}
+
+interface WindowWithSpeechRecognition {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+}
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const win = window as unknown as WindowWithSpeechRecognition;
+  return win.SpeechRecognition || win.webkitSpeechRecognition;
+}
+
 /** Hook for speech-to-text using Browser Web Speech API */
 export function useSpeechToText({
   onTranscript,
@@ -41,14 +79,9 @@ export function useSpeechToText({
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const isActiveRef = useRef<boolean>(false);
-  const isSupported =
-    typeof window !== "undefined" &&
-    Boolean(
-      (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition
-    );
+  const isSupported = typeof window !== "undefined" && Boolean(getSpeechRecognitionConstructor());
 
   const stopListening = useCallback(() => {
     isActiveRef.current = false;
@@ -77,14 +110,11 @@ export function useSpeechToText({
 
   const startListening = useCallback(
     (langOverride?: string) => {
-      if (!isSupported) {
+      const SpeechRecognition = getSpeechRecognitionConstructor();
+      if (!isSupported || !SpeechRecognition) {
         toast.error("Voice input is not supported in this browser. Please use Chrome or Edge.");
         return;
       }
-
-      const SpeechRecognition =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
 
       if (recognitionRef.current) {
         try {
@@ -108,14 +138,16 @@ export function useSpeechToText({
         setTranscript("");
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         if (!isActiveRef.current) return;
         let interim = "";
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalSoFar += event.results[i][0].transcript + " ";
+          const res = event.results[i];
+          if (!res || !res[0]) continue;
+          if (res.isFinal) {
+            finalSoFar += res[0].transcript + " ";
           } else {
-            interim += event.results[i][0].transcript;
+            interim += res[0].transcript;
           }
         }
         const full = (finalSoFar + interim).trim();
@@ -124,7 +156,7 @@ export function useSpeechToText({
         onTranscript?.(full);
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         if (event.error !== "aborted") {
           console.warn("[Voice] recognition error", event.error);
         }
@@ -149,7 +181,7 @@ export function useSpeechToText({
         setIsListening(false);
       }
     },
-    [isSupported, selectedLanguage, onTranscript]
+    [isSupported, selectedLanguage, onTranscript],
   );
 
   const toggleListening = useCallback(() => {
@@ -229,9 +261,7 @@ export function useTextToSpeech() {
 
       // Select natural voice matching language if available
       const voices = window.speechSynthesis.getVoices();
-      const matched = voices.find(
-        (v) => v.lang.startsWith(lang.slice(0, 2)) || v.lang === lang
-      );
+      const matched = voices.find((v) => v.lang.startsWith(lang.slice(0, 2)) || v.lang === lang);
       if (matched) utterance.voice = matched;
 
       utterance.onstart = () => {
@@ -251,7 +281,7 @@ export function useTextToSpeech() {
 
       window.speechSynthesis.speak(utterance);
     },
-    [stop]
+    [stop],
   );
 
   useEffect(() => {

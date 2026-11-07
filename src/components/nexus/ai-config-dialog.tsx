@@ -54,10 +54,14 @@ export function AiConfigHeaderButton() {
         "h-9 gap-1.5 px-3 text-xs font-medium transition-all shadow-none",
         isConnected
           ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
-          : "border-border/80 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+          : "border-border/80 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
       )}
       aria-label="Configure AI API Key"
-      title={isConnected ? `AI Connected (${stats.model.name}) - Click to configure` : "Configure your AI API key"}
+      title={
+        isConnected
+          ? `AI Connected (${stats.model.name}) - Click to configure`
+          : "Configure your AI API key"
+      }
     >
       {isConnected ? (
         <>
@@ -93,14 +97,14 @@ export function AiLimitBar({ className }: { className?: string }) {
     highestRatio >= 0.85
       ? "bg-destructive"
       : highestRatio >= 0.6
-      ? "bg-amber-500"
-      : "bg-emerald-500";
+        ? "bg-amber-500"
+        : "bg-emerald-500";
 
   return (
     <div
       className={cn(
         "flex flex-col gap-1.5 border-b bg-card/60 px-3.5 py-2 text-xs backdrop-blur",
-        className
+        className,
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -108,7 +112,7 @@ export function AiLimitBar({ className }: { className?: string }) {
           <span
             className={cn(
               "size-2 shrink-0 rounded-full",
-              isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+              isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500",
             )}
           />
           <span className="truncate font-medium text-foreground">
@@ -184,8 +188,7 @@ export function AiLimitBar({ className }: { className?: string }) {
 /** Full modal dialog for entering custom API key, selecting model, and viewing/resetting limits */
 export function AiConfigDialog() {
   const [open, setOpen] = useState(false);
-  const { config, stats, isConnected, saveConfig, clearConfig, resetUsage } =
-    useUserAiConfig();
+  const { config, stats, isConnected, saveConfig, clearConfig, resetUsage } = useUserAiConfig();
 
   const [provider, setProvider] = useState<AiProvider>("openrouter");
   const [providerKeys, setProviderKeys] = useState<Record<AiProvider, string>>({
@@ -207,17 +210,12 @@ export function AiConfigDialog() {
         openrouter:
           config.providerKeys?.openrouter ??
           (config.provider === "openrouter" ? config.apiKey : ""),
-        gemini:
-          config.providerKeys?.gemini ??
-          (config.provider === "gemini" ? config.apiKey : ""),
-        openai:
-          config.providerKeys?.openai ??
-          (config.provider === "openai" ? config.apiKey : ""),
+        gemini: config.providerKeys?.gemini ?? (config.provider === "gemini" ? config.apiKey : ""),
+        openai: config.providerKeys?.openai ?? (config.provider === "openai" ? config.apiKey : ""),
       };
       setProviderKeys(savedKeys);
       setModel(
-        config.model ||
-          (config.provider === "openrouter" ? "openrouter/free" : "gemini-2.5-flash")
+        config.model || (config.provider === "openrouter" ? "openrouter/free" : "gemini-2.5-flash"),
       );
       setDailyLimit(config.customDailyLimit || 50);
     } else {
@@ -248,11 +246,7 @@ export function AiConfigDialog() {
     setProvider(p);
     setTestResult(null);
     const defaultModel =
-      p === "openrouter"
-        ? "openrouter/free"
-        : p === "gemini"
-        ? "gemini-2.5-flash"
-        : "gpt-4o";
+      p === "openrouter" ? "openrouter/free" : p === "gemini" ? "gemini-2.5-flash" : "gpt-4o";
     setModel(defaultModel);
   };
 
@@ -297,7 +291,7 @@ export function AiConfigDialog() {
         }
       } else if (provider === "gemini") {
         const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${keyToTest}`
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${keyToTest}`,
         );
         const data = await res.json();
         if (!res.ok || data.error) {
@@ -353,7 +347,7 @@ export function AiConfigDialog() {
 
     if (provider === "openrouter" && trimmed.length < 60) {
       toast.error(
-        `This OpenRouter key looks incomplete (${trimmed.length} characters). OpenRouter keys usually have ~73 characters. Please make sure you copied the full key.`
+        `This OpenRouter key looks incomplete (${trimmed.length} characters). OpenRouter keys usually have ~73 characters. Please make sure you copied the full key.`,
       );
       return;
     }
@@ -378,8 +372,7 @@ export function AiConfigDialog() {
     setOpen(false);
   };
 
-  const selectedModelInfo =
-    AVAILABLE_MODELS.find((m) => m.id === model) || filteredModels[0];
+  const selectedModelInfo = AVAILABLE_MODELS.find((m) => m.id === model) || filteredModels[0];
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -410,7 +403,7 @@ export function AiConfigDialog() {
                   "flex items-center justify-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition-colors",
                   provider === "openrouter"
                     ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary"
-                    : "hover:bg-muted text-muted-foreground"
+                    : "hover:bg-muted text-muted-foreground",
                 )}
               >
                 <Sparkles className="size-3.5 text-indigo-500" />
@@ -427,7 +420,7 @@ export function AiConfigDialog() {
                   "flex items-center justify-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition-colors",
                   provider === "gemini"
                     ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary"
-                    : "hover:bg-muted text-muted-foreground"
+                    : "hover:bg-muted text-muted-foreground",
                 )}
               >
                 <Zap className="size-3.5 text-amber-500" />
@@ -441,7 +434,7 @@ export function AiConfigDialog() {
                   "flex items-center justify-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition-colors",
                   provider === "openai"
                     ? "border-primary bg-primary/10 text-primary font-semibold ring-1 ring-primary"
-                    : "hover:bg-muted text-muted-foreground"
+                    : "hover:bg-muted text-muted-foreground",
                 )}
               >
                 <Sparkles className="size-3.5" />
@@ -457,8 +450,8 @@ export function AiConfigDialog() {
                 {provider === "openrouter"
                   ? "OpenRouter API Key"
                   : provider === "gemini"
-                  ? "Gemini API Key"
-                  : "OpenAI API Key"}
+                    ? "Gemini API Key"
+                    : "OpenAI API Key"}
               </Label>
               {provider === "openrouter" ? (
                 <a
@@ -497,8 +490,8 @@ export function AiConfigDialog() {
                     provider === "openrouter"
                       ? "sk-or-v1-..."
                       : provider === "gemini"
-                      ? "AIzaSy... or AQ.Ab8..."
-                      : "sk-proj-..."
+                        ? "AIzaSy... or AQ.Ab8..."
+                        : "sk-proj-..."
                   }
                   value={providerKeys[provider] || ""}
                   onChange={(e) => handleKeyChange(e.target.value)}
@@ -543,7 +536,7 @@ export function AiConfigDialog() {
                   "p-2.5 rounded-lg border text-xs flex items-start gap-2 animate-in fade-in",
                   testResult.ok
                     ? "bg-emerald-50/80 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
-                    : "bg-red-50/80 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300"
+                    : "bg-red-50/80 border-red-200 text-red-800 dark:bg-red-950/40 dark:border-red-800 dark:text-red-300",
                 )}
               >
                 {testResult.ok ? (
@@ -559,8 +552,8 @@ export function AiConfigDialog() {
               {provider === "openrouter"
                 ? "OpenRouter keys start with 'sk-or-v1-' and are 73 characters long. Check with 'Test Key' to ensure it is valid."
                 : provider === "gemini"
-                ? "Your Google Gemini API key is saved only for Gemini and used securely in your browser."
-                : "Your OpenAI API key is saved only for OpenAI requests."}
+                  ? "Your Google Gemini API key is saved only for Gemini and used securely in your browser."
+                  : "Your OpenAI API key is saved only for OpenAI requests."}
             </p>
           </div>
 
@@ -579,7 +572,9 @@ export function AiConfigDialog() {
                 <SelectValue placeholder="Select a model">
                   {selectedModelInfo ? (
                     <span className="flex items-center gap-1.5 truncate">
-                      <span className="font-medium text-foreground truncate">{selectedModelInfo.name}</span>
+                      <span className="font-medium text-foreground truncate">
+                        {selectedModelInfo.name}
+                      </span>
                       {selectedModelInfo.isFree && (
                         <span className="rounded bg-emerald-500/15 px-1 py-0.2 text-[9px] font-bold text-emerald-600 shrink-0">
                           FREE
@@ -642,8 +637,8 @@ export function AiConfigDialog() {
                       stats.rpmPercent >= 80
                         ? "bg-destructive"
                         : stats.rpmPercent >= 50
-                        ? "bg-amber-500"
-                        : "bg-emerald-500"
+                          ? "bg-amber-500"
+                          : "bg-emerald-500",
                     )}
                     style={{ width: `${stats.rpmPercent}%` }}
                   />
@@ -663,8 +658,8 @@ export function AiConfigDialog() {
                       stats.dailyPercent >= 80
                         ? "bg-destructive"
                         : stats.dailyPercent >= 50
-                        ? "bg-amber-500"
-                        : "bg-emerald-500"
+                          ? "bg-amber-500"
+                          : "bg-emerald-500",
                     )}
                     style={{ width: `${stats.dailyPercent}%` }}
                   />
@@ -690,8 +685,8 @@ export function AiConfigDialog() {
               {provider === "openrouter"
                 ? "Tip: OpenRouter free models have an approximate 20 requests/minute limit with no credit card required."
                 : provider === "gemini"
-                ? "Tip: The free Gemini tier allows up to 15 requests/minute. Space your messages 4-5 seconds apart to prevent 429 errors."
-                : "Tip: OpenAI requests use your standard OpenAI platform pay-as-you-go quota."}
+                  ? "Tip: The free Gemini tier allows up to 15 requests/minute. Space your messages 4-5 seconds apart to prevent 429 errors."
+                  : "Tip: OpenAI requests use your standard OpenAI platform pay-as-you-go quota."}
             </p>
           </div>
         </div>
@@ -722,12 +717,7 @@ export function AiConfigDialog() {
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSave}
-              className="gap-1.5 text-xs"
-            >
+            <Button type="button" size="sm" onClick={handleSave} className="gap-1.5 text-xs">
               <CheckCircle2 className="size-3.5" />
               <span>Save & Connect</span>
             </Button>

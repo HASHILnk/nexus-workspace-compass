@@ -3,6 +3,8 @@ import {
   ConversationAgent,
   BrowserAudioInterface,
   InteractionType,
+  AgentState,
+  type ServerTranscriptMsg,
 } from "sarvam-conv-ai-sdk/browser";
 
 export interface SarvamVoiceConfig {
@@ -15,13 +17,7 @@ export interface SarvamVoiceConfig {
 }
 
 export type SarvamAgentCallState =
-  | "IDLE"
-  | "CONNECTING"
-  | "CONNECTED"
-  | "LISTENING"
-  | "SPEAKING"
-  | "ERROR"
-  | "DISCONNECTED";
+  "IDLE" | "CONNECTING" | "CONNECTED" | "LISTENING" | "SPEAKING" | "ERROR" | "DISCONNECTED";
 
 export interface SarvamTranscriptMessage {
   id: string;
@@ -41,8 +37,7 @@ export const DEFAULT_SARVAM_CONFIG: SarvamVoiceConfig = {
     (import.meta.env["VITE_SARVAM_WORKSPACE_ID"] as string | undefined) ||
     "019ea821-f3cf-75f7-a0ab-ee99f8573815",
   appId:
-    (import.meta.env["VITE_SARVAM_APP_ID"] as string | undefined) ||
-    "Conversatio-dae05367-3a4f",
+    (import.meta.env["VITE_SARVAM_APP_ID"] as string | undefined) || "Conversatio-dae05367-3a4f",
   version: "1",
 };
 
@@ -98,7 +93,7 @@ export class SarvamVoiceCallSession {
           },
         },
         audioInterface: this.audioInterface,
-        transcriptCallback: async (msg: any) => {
+        transcriptCallback: async (msg: ServerTranscriptMsg) => {
           const role = msg.role === "bot" ? "bot" : "user";
           const id =
             typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -111,7 +106,7 @@ export class SarvamVoiceCallSession {
             timestamp: new Date(),
           });
         },
-        stateCallback: (state: any) => {
+        stateCallback: (state: AgentState) => {
           const s = String(state).toUpperCase();
           if (s.includes("SPEAK")) {
             this.onStateChange("SPEAKING");

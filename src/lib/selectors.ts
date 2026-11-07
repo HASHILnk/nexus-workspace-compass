@@ -20,13 +20,26 @@ export function workspaceKpis(s: State) {
   const active = s.projects.filter((p) => p.status !== "completed");
   const nearing = active.filter((p) => projectStats(p, s.tasks).progress >= 70).length;
   const mine = s.tasks.filter((t) => t.assigneeId === s.meId && t.status !== "done");
-  const dueWeek = mine.filter((t) => { const n = daysUntil(t.dueDate); return n >= 0 && n <= 7; }).length;
+  const dueWeek = mine.filter((t) => {
+    const n = daysUntil(t.dueDate);
+    return n >= 0 && n <= 7;
+  }).length;
   const done = s.tasks.filter((t) => t.status === "done").length;
   const completion = s.tasks.length ? Math.round((done / s.tasks.length) * 100) : 0;
   const overdue = s.tasks.filter(isOverdue);
   const overdueProjects = new Set(overdue.map((t) => t.projectId)).size;
-  return { activeProjects: active.length, nearing, myTasks: mine.length, dueWeek, completion, overdue: overdue.length, overdueProjects };
+  return {
+    activeProjects: active.length,
+    nearing,
+    myTasks: mine.length,
+    dueWeek,
+    completion,
+    overdue: overdue.length,
+    overdueProjects,
+  };
 }
 
-export const memberById = (s: State, id: string | null | undefined) => s.members.find((m) => m.id === id);
-export const projectById = (s: State, id: string | undefined) => s.projects.find((p) => p.id === id);
+export const memberById = (s: State, id: string | null | undefined) =>
+  s.members.find((m) => m.id === id);
+export const projectById = (s: State, id: string | undefined) =>
+  s.projects.find((p) => p.id === id);

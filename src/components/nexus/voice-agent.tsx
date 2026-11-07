@@ -3,7 +3,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Mic, MicOff, MessageSquare, ShieldCheck, Sparkles, Square, Volume2, X } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  MessageSquare,
+  ShieldCheck,
+  Sparkles,
+  Square,
+  Volume2,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { createThread } from "@/lib/ai.functions";
 import { useStore } from "@/lib/store";
@@ -20,17 +29,48 @@ type Phase = "idle" | "listening" | "thinking" | "speaking";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Rec = any;
 
-const FEMALE_HINTS = ["female", "samantha", "zira", "aria", "jenny", "google uk english female", "victoria", "karen", "moira", "tessa", "serena", "susan", "heera", "veena", "libby", "sonia", "natasha", "michelle", "ava", "allison"];
+const FEMALE_HINTS = [
+  "female",
+  "samantha",
+  "zira",
+  "aria",
+  "jenny",
+  "google uk english female",
+  "victoria",
+  "karen",
+  "moira",
+  "tessa",
+  "serena",
+  "susan",
+  "heera",
+  "veena",
+  "libby",
+  "sonia",
+  "natasha",
+  "michelle",
+  "ava",
+  "allison",
+];
 
 function pickVoice(): SpeechSynthesisVoice | null {
   const vs = window.speechSynthesis?.getVoices() ?? [];
   const en = vs.filter((v) => v.lang.toLowerCase().startsWith("en"));
-  for (const h of FEMALE_HINTS) { const v = en.find((x) => x.name.toLowerCase().includes(h)); if (v) return v; }
+  for (const h of FEMALE_HINTS) {
+    const v = en.find((x) => x.name.toLowerCase().includes(h));
+    if (v) return v;
+  }
   return en[0] ?? vs[0] ?? null;
 }
 
 function speakable(md: string) {
-  return md.replace(/```[\s\S]*?```/g, "").replace(/[*_#>`|]/g, "").replace(/\[(.*?)\]\(.*?\)/g, "$1").replace(/^\s*[-•]\s+/gm, "").replace(/\n{2,}/g, ". ").replace(/\n/g, ", ").trim();
+  return md
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/[*_#>`|]/g, "")
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+    .replace(/^\s*[-•]\s+/gm, "")
+    .replace(/\n{2,}/g, ". ")
+    .replace(/\n/g, ", ")
+    .trim();
 }
 
 function extractText(m: { role: string; parts?: Array<{ type: string; text?: string }> }): string {
@@ -53,16 +93,26 @@ export function VoiceAgent({ open, onClose }: { open: boolean; onClose: () => vo
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     if (!open || threadId) return;
-    create().then((t) => setThreadId(t.id)).catch((e) => setErr((e as Error).message));
+    create()
+      .then((t) => setThreadId(t.id))
+      .catch((e) => setErr((e as Error).message));
   }, [open, threadId, create]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-background/95 p-4 sm:p-6 backdrop-blur-xl" role="dialog" aria-label="Nexus voice assistant">
-      {threadId ? <VoiceSession threadId={threadId} onClose={onClose} /> : (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-background/95 p-4 sm:p-6 backdrop-blur-xl"
+      role="dialog"
+      aria-label="Nexus voice assistant"
+    >
+      {threadId ? (
+        <VoiceSession threadId={threadId} onClose={onClose} />
+      ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-4">
           <Orb level={0.1} phase="thinking" compact={false} />
           <p className="text-sm text-muted-foreground">{err ?? "Getting ready…"}</p>
-          <Button variant="outline" className="rounded-full" onClick={onClose}>Close</Button>
+          <Button variant="outline" className="rounded-full" onClick={onClose}>
+            Close
+          </Button>
         </div>
       )}
     </div>
@@ -93,56 +143,100 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
   const ttsAbort = useRef<AbortController | null>(null);
   const ttsLevel = useRef(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const stopSpeech = () => { ttsAbort.current?.abort(); ttsAbort.current = null; window.speechSynthesis?.cancel(); };
+  const stopSpeech = () => {
+    ttsAbort.current?.abort();
+    ttsAbort.current = null;
+    window.speechSynthesis?.cancel();
+  };
 
-  const transport = useMemo(() => new DefaultChatTransport({
-    api: "/api/chat",
-    headers: async (): Promise<Record<string, string>> => {
-      const { data } = await supabase.auth.getSession();
-      return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
-    },
-    body: () => ({ threadId, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, projectId: null }),
-  }), [threadId]);
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        headers: async (): Promise<Record<string, string>> => {
+          const { data } = await supabase.auth.getSession();
+          return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+        },
+        body: () => ({
+          threadId,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          projectId: null,
+        }),
+      }),
+    [threadId],
+  );
 
   const listenRef = useRef<() => void>(() => {});
 
   const browserSpeak = useCallback((clean: string, then?: () => void) => {
     const synth = window.speechSynthesis;
-    if (!synth) { setPhase("idle"); then?.(); return; }
+    if (!synth) {
+      setPhase("idle");
+      then?.();
+      return;
+    }
     const parts = clean.match(/[^.!?]+[.!?]*/g) ?? [clean];
     const voice = pickVoice();
     parts.forEach((p, i) => {
       const u = new SpeechSynthesisUtterance(p.trim());
       if (voice) u.voice = voice;
-      u.rate = 1.05; u.pitch = 1.15;
-      u.onboundary = () => { ttsLevel.current = 0.55 + Math.random() * 0.45; };
-      if (i === parts.length - 1) u.onend = () => { if (!activeRef.current) return; setPhase("idle"); then?.(); };
+      u.rate = 1.05;
+      u.pitch = 1.15;
+      u.onboundary = () => {
+        ttsLevel.current = 0.55 + Math.random() * 0.45;
+      };
+      if (i === parts.length - 1)
+        u.onend = () => {
+          if (!activeRef.current) return;
+          setPhase("idle");
+          then?.();
+        };
       synth.speak(u);
     });
   }, []);
 
-  const speak = useCallback((text: string, then?: () => void) => {
-    stopSpeech();
-    const clean = speakable(text);
-    if (!clean) { then?.(); return; }
-    setReply(text);
-    setPhase("speaking");
-    const ac = new AbortController();
-    ttsAbort.current = ac;
-    playNaturalVoice(clean, ac.signal, (l) => { ttsLevel.current = l; })
-      .then(() => { if (!activeRef.current || ac.signal.aborted) return; setPhase("idle"); then?.(); })
-      .catch(() => { if (!activeRef.current || ac.signal.aborted) return; browserSpeak(clean, then); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browserSpeak]);
+  const speak = useCallback(
+    (text: string, then?: () => void) => {
+      stopSpeech();
+      const clean = speakable(text);
+      if (!clean) {
+        then?.();
+        return;
+      }
+      setReply(text);
+      setPhase("speaking");
+      const ac = new AbortController();
+      ttsAbort.current = ac;
+      playNaturalVoice(clean, ac.signal, (l) => {
+        ttsLevel.current = l;
+      })
+        .then(() => {
+          if (!activeRef.current || ac.signal.aborted) return;
+          setPhase("idle");
+          then?.();
+        })
+        .catch(() => {
+          if (!activeRef.current || ac.signal.aborted) return;
+          browserSpeak(clean, then);
+        });
+    },
+    [browserSpeak],
+  );
 
   const { sendMessage, stop, messages } = useChat({
-    id: `voice-${threadId}`, transport,
+    id: `voice-${threadId}`,
+    transport,
     onFinish: ({ message }) => {
-      void refresh(); void qc.invalidateQueries({ queryKey: ["ai-threads"] });
-      const text = message.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ").trim();
+      void refresh();
+      void qc.invalidateQueries({ queryKey: ["ai-threads"] });
+      const text = message.parts
+        .map((p) => (p.type === "text" ? p.text : ""))
+        .join(" ")
+        .trim();
       speak(text || "Done. Anything else?", () => listenRef.current());
     },
-    onError: (e) => speak(`Sorry, I couldn't get that. ${e.message ?? ""}`, () => listenRef.current()),
+    onError: (e) =>
+      speak(`Sorry, I couldn't get that. ${e.message ?? ""}`, () => listenRef.current()),
   });
 
   // Auto-scroll chat box when conversation updates
@@ -154,44 +248,86 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
   const listen = useCallback(() => {
     if (!activeRef.current || mutedRef.current || !supported) return;
     const a = audio.current;
-    if (!a) { setPhase("idle"); setReply("Microphone access is blocked. Allow it in your browser to talk to me."); return; }
-    try { recRef.current?.abort(); } catch { /* noop */ }
+    if (!a) {
+      setPhase("idle");
+      setReply("Microphone access is blocked. Allow it in your browser to talk to me.");
+      return;
+    }
+    try {
+      recRef.current?.abort();
+    } catch {
+      /* noop */
+    }
     stopSpeech();
     if (a.ctx.state === "suspended") void a.ctx.resume();
-    const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((m) => MediaRecorder.isTypeSupported(m));
+    const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((m) =>
+      MediaRecorder.isTypeSupported(m),
+    );
     const mr = new MediaRecorder(a.stream, mime ? { mimeType: mime } : undefined);
     const chunks: Blob[] = [];
     let cancelled = false;
     const buf = new Uint8Array(256);
     const started = Date.now();
-    let spoke = false, lastLoud = started;
-    const finish = () => { clearInterval(iv); if (mr.state !== "inactive") mr.stop(); };
-    const cancel = () => { cancelled = true; finish(); };
+    let spoke = false,
+      lastLoud = started;
+    const finish = () => {
+      clearInterval(iv);
+      if (mr.state !== "inactive") mr.stop();
+    };
+    const cancel = () => {
+      cancelled = true;
+      finish();
+    };
     const iv = setInterval(() => {
       a.an.getByteTimeDomainData(buf);
-      let s = 0; for (const v of buf) s += ((v - 128) / 128) ** 2;
+      let s = 0;
+      for (const v of buf) s += ((v - 128) / 128) ** 2;
       const rms = Math.sqrt(s / buf.length);
       const now = Date.now();
-      if (rms > 0.03) { spoke = true; lastLoud = now; }
+      if (rms > 0.03) {
+        spoke = true;
+        lastLoud = now;
+      }
       if (spoke && now - lastLoud > 1300) finish();
-      else if (!spoke && now - started > 15000) { cancel(); setPhase("idle"); }
-      else if (now - started > 30000) finish();
+      else if (!spoke && now - started > 15000) {
+        cancel();
+        setPhase("idle");
+      } else if (now - started > 30000) finish();
     }, 100);
-    mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    mr.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
     mr.onstop = () => {
       if (recRef.current?.mr === mr) recRef.current = null;
       if (cancelled || !activeRef.current || !spoke || !chunks.length) return;
-      setPhase("thinking"); setReply(""); setHeard("…");
-      transcribeClip(new Blob(chunks, { type: mr.mimeType || "audio/webm" }), new AbortController().signal)
+      setPhase("thinking");
+      setReply("");
+      setHeard("…");
+      transcribeClip(
+        new Blob(chunks, { type: mr.mimeType || "audio/webm" }),
+        new AbortController().signal,
+      )
         .then((t) => {
           if (!activeRef.current) return;
-          if (!t) { setHeard(""); setPhase("idle"); setReply("I didn't catch that — tap the orb and try again."); return; }
-          setHeard(t); void sendMessage({ text: t });
+          if (!t) {
+            setHeard("");
+            setPhase("idle");
+            setReply("I didn't catch that — tap the orb and try again.");
+            return;
+          }
+          setHeard(t);
+          void sendMessage({ text: t });
         })
-        .catch(() => { if (!activeRef.current) return; setHeard(""); setPhase("idle"); setReply("I couldn't hear that clearly. Tap the orb to try again."); });
+        .catch(() => {
+          if (!activeRef.current) return;
+          setHeard("");
+          setPhase("idle");
+          setReply("I couldn't hear that clearly. Tap the orb to try again.");
+        });
     };
     recRef.current = { mr, stop: finish, abort: cancel };
-    setHeard(""); setPhase("listening");
+    setHeard("");
+    setPhase("listening");
     mr.start(250);
   }, [sendMessage, supported]);
   listenRef.current = listen;
@@ -239,14 +375,17 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
         notch.connect(an);
 
         audio.current = { stream, ctx, an };
-      } catch { /* meter optional */ }
+      } catch {
+        /* meter optional */
+      }
 
       const buf = new Uint8Array(256);
       const tick = () => {
         const p = phaseRef.current;
         if (p === "listening" && audio.current) {
           audio.current.an.getByteTimeDomainData(buf);
-          let s = 0; for (const v of buf) s += ((v - 128) / 128) ** 2;
+          let s = 0;
+          for (const v of buf) s += ((v - 128) / 128) ** 2;
           setLevel((l) => l * 0.6 + Math.min(1, Math.sqrt(s / buf.length) * 6) * 0.4);
         } else if (p === "speaking") setLevel((l) => l * 0.5 + ttsLevel.current * 0.5);
         else if (p === "thinking") setLevel(0.25 + Math.sin(Date.now() / 250) * 0.1);
@@ -257,7 +396,10 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
 
       const h = new Date().getHours();
       const hi = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
-      if (!supported) { setReply("Voice needs microphone access, which this browser does not support."); return; }
+      if (!supported) {
+        setReply("Voice needs microphone access, which this browser does not support.");
+        return;
+      }
       const initialGreeting = `${hi} ${firstName}! I'm Nova, your Nexus assistant. Ask me about your projects, deadlines or who's free, or tell me to create a task.`;
       setGreeting(initialGreeting);
       speak(initialGreeting, () => listenRef.current());
@@ -266,7 +408,11 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
     return () => {
       activeRef.current = false;
       cancelAnimationFrame(raf.current);
-      try { recRef.current?.abort(); } catch { /* noop */ }
+      try {
+        recRef.current?.abort();
+      } catch {
+        /* noop */
+      }
       stopSpeech();
       audio.current?.stream.getTracks().forEach((t) => t.stop());
       void audio.current?.ctx.close();
@@ -275,23 +421,55 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
   }, []);
 
   const tapOrb = () => {
-    if (phase === "speaking") { stopSpeech(); listen(); }
-    else if (phase === "thinking") { void stop(); listen(); }
-    else if (phase === "listening") { try { recRef.current?.stop(); } catch { /* noop */ } }
-    else listen();
+    if (phase === "speaking") {
+      stopSpeech();
+      listen();
+    } else if (phase === "thinking") {
+      void stop();
+      listen();
+    } else if (phase === "listening") {
+      try {
+        recRef.current?.stop();
+      } catch {
+        /* noop */
+      }
+    } else listen();
   };
 
   const toggleMute = () => {
-    const m = !muted; setMuted(m); mutedRef.current = m;
-    if (m) { try { recRef.current?.abort(); } catch { /* noop */ } setPhase("idle"); } else listen();
+    const m = !muted;
+    setMuted(m);
+    mutedRef.current = m;
+    if (m) {
+      try {
+        recRef.current?.abort();
+      } catch {
+        /* noop */
+      }
+      setPhase("idle");
+    } else listen();
   };
 
-  const label = { idle: muted ? "Microphone off" : "Tap the orb to talk", listening: "Listening…", thinking: "Checking your workspace…", speaking: "Nova is speaking" }[phase];
-  const suggestions = ["What should I focus on today?", "Who has nothing assigned?", "Any overdue tasks?", "Summarize my projects"];
+  const label = {
+    idle: muted ? "Microphone off" : "Tap the orb to talk",
+    listening: "Listening…",
+    thinking: "Checking your workspace…",
+    speaking: "Nova is speaking",
+  }[phase];
+  const suggestions = [
+    "What should I focus on today?",
+    "Who has nothing assigned?",
+    "Any overdue tasks?",
+    "Summarize my projects",
+  ];
 
   const handleSuggestion = (s: string) => {
     stopSpeech();
-    try { recRef.current?.abort(); } catch { /* noop */ }
+    try {
+      recRef.current?.abort();
+    } catch {
+      /* noop */
+    }
     setHeard(s);
     setPhase("thinking");
     void sendMessage({ text: s });
@@ -316,14 +494,23 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
           <Button
             variant="ghost"
             size="sm"
-            className={cn("h-8 rounded-full px-3 text-xs gap-1.5", showTranscript ? "bg-accent text-accent-foreground" : "text-muted-foreground")}
+            className={cn(
+              "h-8 rounded-full px-3 text-xs gap-1.5",
+              showTranscript ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+            )}
             onClick={() => setShowTranscript((v) => !v)}
             aria-label="Toggle chat transcript"
           >
             <MessageSquare className="size-3.5" />
             <span className="hidden sm:inline">Chat</span>
           </Button>
-          <Button variant="ghost" size="icon" className="size-8 rounded-full" aria-label="Close voice assistant" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full"
+            aria-label="Close voice assistant"
+            onClick={onClose}
+          >
             <X className="size-4" />
           </Button>
         </div>
@@ -342,13 +529,15 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
 
         {/* Phase Status Label */}
         <div className="text-center">
-          <p className={cn(
-            "text-xs font-semibold uppercase tracking-widest transition-colors",
-            phase === "listening" && "text-primary animate-pulse",
-            phase === "thinking" && "text-amber-500 animate-pulse",
-            phase === "speaking" && "text-emerald-500",
-            phase === "idle" && "text-muted-foreground"
-          )}>
+          <p
+            className={cn(
+              "text-xs font-semibold uppercase tracking-widest transition-colors",
+              phase === "listening" && "text-primary animate-pulse",
+              phase === "thinking" && "text-amber-500 animate-pulse",
+              phase === "speaking" && "text-emerald-500",
+              phase === "idle" && "text-muted-foreground",
+            )}
+          >
             {label}
           </p>
         </div>
@@ -391,7 +580,7 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
                     key={m.id || idx}
                     className={cn(
                       "flex items-start gap-2.5",
-                      isUser ? "ml-auto max-w-[85%] justify-end" : "mr-auto max-w-[90%]"
+                      isUser ? "ml-auto max-w-[85%] justify-end" : "mr-auto max-w-[90%]",
                     )}
                   >
                     {!isUser && (
@@ -405,7 +594,7 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
                         "rounded-2xl px-3.5 py-2 text-xs leading-relaxed shadow-sm",
                         isUser
                           ? "rounded-tr-xs bg-primary text-primary-foreground font-medium"
-                          : "rounded-tl-xs bg-muted/60 text-foreground border border-border/30"
+                          : "rounded-tl-xs bg-muted/60 text-foreground border border-border/30",
                       )}
                     >
                       {!isUser && (
@@ -454,7 +643,9 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
           /* Minimal View (When Chat Transcript is collapsed) */
           <div className="min-h-20 max-w-xl space-y-2 text-center">
             {heard && <p className="text-base font-medium">“{heard}”</p>}
-            {reply && phase !== "listening" && <p className="line-clamp-4 text-xs text-muted-foreground">{speakable(reply)}</p>}
+            {reply && phase !== "listening" && (
+              <p className="line-clamp-4 text-xs text-muted-foreground">{speakable(reply)}</p>
+            )}
           </div>
         )}
 
@@ -483,9 +674,17 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
           aria-label={muted ? "Turn microphone on" : "Mute microphone"}
           onClick={toggleMute}
         >
-          {muted ? <MicOff className="size-5 text-destructive" /> : <Mic className="size-5 text-primary" />}
+          {muted ? (
+            <MicOff className="size-5 text-destructive" />
+          ) : (
+            <Mic className="size-5 text-primary" />
+          )}
         </Button>
-        <Button variant="destructive" className="h-12 rounded-full px-6 shadow-md" onClick={onClose}>
+        <Button
+          variant="destructive"
+          className="h-12 rounded-full px-6 shadow-md"
+          onClick={onClose}
+        >
           <Square className="size-4 mr-1.5" />
           End
         </Button>
@@ -494,9 +693,20 @@ function VoiceSession({ threadId, onClose }: { threadId: string; onClose: () => 
   );
 }
 
-function Orb({ level, phase, compact = false }: { level: number; phase: Phase; compact?: boolean }) {
+function Orb({
+  level,
+  phase,
+  compact = false,
+}: {
+  level: number;
+  phase: Phase;
+  compact?: boolean;
+}) {
   const s = 1 + level * 0.35;
-  const spin = phase === "thinking" ? "animate-spin [animation-duration:3s]" : "animate-spin [animation-duration:12s]";
+  const spin =
+    phase === "thinking"
+      ? "animate-spin [animation-duration:3s]"
+      : "animate-spin [animation-duration:12s]";
   const outerSize = compact ? "size-36 sm:size-44" : "size-56 sm:size-64";
   const glowSize = compact ? "size-28 sm:size-36" : "size-40 sm:size-48";
   const innerSize = compact ? "size-24 sm:size-28" : "size-32 sm:size-40";
@@ -504,14 +714,26 @@ function Orb({ level, phase, compact = false }: { level: number; phase: Phase; c
 
   return (
     <div className={cn("relative grid place-items-center", outerSize)}>
-      <div className="absolute inset-0 rounded-full bg-chart-1/20 blur-3xl transition-transform duration-100" style={{ transform: `scale(${1 + level * 0.6})` }} />
-      <div className={cn("absolute transition-transform duration-100", glowSize, spin)} style={{ transform: `scale(${s})` }}>
+      <div
+        className="absolute inset-0 rounded-full bg-chart-1/20 blur-3xl transition-transform duration-100"
+        style={{ transform: `scale(${1 + level * 0.6})` }}
+      />
+      <div
+        className={cn("absolute transition-transform duration-100", glowSize, spin)}
+        style={{ transform: `scale(${s})` }}
+      >
         <span className="absolute left-0 top-3 size-3/4 rounded-full bg-chart-1 opacity-80 mix-blend-multiply blur-2xl" />
         <span className="absolute right-0 top-4 size-3/4 rounded-full bg-chart-5 opacity-80 mix-blend-multiply blur-2xl" />
         <span className="absolute bottom-0 left-6 size-3/4 rounded-full bg-chart-2 opacity-80 mix-blend-multiply blur-2xl" />
         <span className="absolute bottom-3 right-4 size-2/3 rounded-full bg-chart-4 opacity-70 mix-blend-multiply blur-2xl" />
       </div>
-      <div className={cn("relative rounded-full border border-background/60 bg-background/30 shadow-2xl backdrop-blur-md transition-transform duration-100", innerSize)} style={{ transform: `scale(${1 + level * 0.15})` }} />
+      <div
+        className={cn(
+          "relative rounded-full border border-background/60 bg-background/30 shadow-2xl backdrop-blur-md transition-transform duration-100",
+          innerSize,
+        )}
+        style={{ transform: `scale(${1 + level * 0.15})` }}
+      />
       <div className="absolute flex items-end gap-1">
         {[0.6, 1, 0.8, 1, 0.6].map((m, i) => (
           <span
@@ -524,4 +746,3 @@ function Orb({ level, phase, compact = false }: { level: number; phase: Phase; c
     </div>
   );
 }
-

@@ -13,9 +13,13 @@ describe("workspace permissions", () => {
   });
 
   it("only lets members edit tasks they are assigned to or reported", () => {
-    expect(canEditTask("member", "u-me", { assigneeId: "u-other", reporterId: "u-other" })).toBe(false);
+    expect(canEditTask("member", "u-me", { assigneeId: "u-other", reporterId: "u-other" })).toBe(
+      false,
+    );
     expect(canEditTask("member", "u-me", { assigneeId: "u-me", reporterId: "u-other" })).toBe(true);
-    expect(canEditTask("manager", "u-me", { assigneeId: "u-other", reporterId: "u-other" })).toBe(true);
+    expect(canEditTask("manager", "u-me", { assigneeId: "u-other", reporterId: "u-other" })).toBe(
+      true,
+    );
   });
 
   it("only admins and managers can create projects", () => {
