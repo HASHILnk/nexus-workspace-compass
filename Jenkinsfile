@@ -98,6 +98,47 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy to Azure Container Apps') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'azure-acr-sp',
+                        usernameVariable: 'AZURE_CLIENT_ID',
+                        passwordVariable: 'AZURE_CLIENT_SECRET'
+                    ),
+                    string(
+                        credentialsId: 'azure-tenant-id',
+                        variable: 'AZURE_TENANT_ID'
+                    )
+                ]) {
+                    sh '''
+                        set -eu
+
+                        docker run --rm \
+                          -e AZURE_CLIENT_ID \
+                          -e AZURE_CLIENT_SECRET \
+                          -e AZURE_TENANT_ID \
+                          -e BUILD_NUMBER \
+                          mcr.microsoft.com/azure-cli:latest \
+                          sh -c '
+                            az login --service-principal \
+                              --username "$AZURE_CLIENT_ID" \
+                              --password "$AZURE_CLIENT_SECRET" \
+                              --tenant "$AZURE_TENANT_ID" \
+                              --output none
+
+                            az account set --subscription "Azure subscription 1"
+
+                            az containerapp update \
+                              --name nexus-app \
+                              --resource-group rg-nexus-dev \
+                              --image "nexusbijok2026.azurecr.io/nexus:$BUILD_NUMBER"
+                          '
+                    '''
+                }
+            }
+        }
     }
 
     post {
