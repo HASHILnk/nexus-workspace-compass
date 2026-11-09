@@ -23,6 +23,7 @@ pipeline {
             steps {
                 sh 'node --version'
                 sh 'npm --version'
+                sh 'docker version'
             }
         }
 
@@ -47,16 +48,31 @@ pipeline {
         stage('Build') {
             steps {
                 withCredentials([
-                    string(
-                        credentialsId: 'nexus-vite-supabase-url',
-                        variable: 'VITE_SUPABASE_URL'
-                    ),
-                    string(
-                        credentialsId: 'nexus-vite-supabase-key',
-                        variable: 'VITE_SUPABASE_PUBLISHABLE_KEY'
-                    )
+                    string(credentialsId: 'nexus-vite-supabase-url',
+                           variable: 'VITE_SUPABASE_URL'),
+                    string(credentialsId: 'nexus-vite-supabase-key',
+                           variable: 'VITE_SUPABASE_PUBLISHABLE_KEY')
                 ]) {
                     sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'nexus-vite-supabase-url',
+                           variable: 'VITE_SUPABASE_URL'),
+                    string(credentialsId: 'nexus-vite-supabase-key',
+                           variable: 'VITE_SUPABASE_PUBLISHABLE_KEY')
+                ]) {
+                    sh '''
+                        docker build \
+                          --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
+                          --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" \
+                          -t nexus-app:${BUILD_NUMBER} \
+                          -t nexus-app:ci .
+                    '''
                 }
             }
         }
@@ -64,11 +80,10 @@ pipeline {
 
     post {
         success {
-            echo 'NEXUS CI build succeeded!'
+            echo 'NEXUS CI and Docker build succeeded!'
         }
         failure {
-            echo 'NEXUS CI build failed. Inspect the logs.'
+            echo 'NEXUS pipeline failed. Inspect the logs.'
         }
     }
 }
-
