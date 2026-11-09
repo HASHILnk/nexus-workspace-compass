@@ -58,20 +58,42 @@ pipeline {
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build and Push to ACR') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'nexus-vite-supabase-url',
-                           variable: 'VITE_SUPABASE_URL'),
-                    string(credentialsId: 'nexus-vite-supabase-key',
-                           variable: 'VITE_SUPABASE_PUBLISHABLE_KEY')
+                    usernamePassword(
+                        credentialsId: 'azure-acr-sp',
+                        usernameVariable: 'ACR_USERNAME',
+                        passwordVariable: 'ACR_PASSWORD'
+                    ),
+                    string(
+                        credentialsId: 'nexus-vite-supabase-url',
+                        variable: 'VITE_SUPABASE_URL'
+                    ),
+                    string(
+                        credentialsId: 'nexus-vite-supabase-key',
+                        variable: 'VITE_SUPABASE_PUBLISHABLE_KEY'
+                    )
                 ]) {
                     sh '''
+                        set -eu
+
+                        REGISTRY="nexusbijok2026.azurecr.io"
+                        IMAGE="$REGISTRY/nexus"
+
+                        echo "$ACR_PASSWORD" | docker login "$REGISTRY" \
+                          --username "$ACR_USERNAME" --password-stdin
+
                         docker build \
                           --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
                           --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" \
-                          -t nexus-app:${BUILD_NUMBER} \
-                          -t nexus-app:ci .
+                          -t "$IMAGE:$BUILD_NUMBER" \
+                          -t "$IMAGE:latest" .
+
+                        docker push "$IMAGE:$BUILD_NUMBER"
+                        docker push "$IMAGE:latest"
+
+                        docker logout "$REGISTRY"
                     '''
                 }
             }
