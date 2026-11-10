@@ -25,6 +25,7 @@ import {
   BarChart3,
   LogOut,
   Hexagon,
+  RadioTower,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +64,7 @@ const NAV = [
   { to: "/", label: "Overview", icon: LayoutGrid },
   { to: "/tasks", label: "My Tasks", icon: ListChecks },
   { to: "/projects", label: "Projects", icon: FolderKanban },
+  { to: "/beacon", label: "Beacon", icon: RadioTower },
   { to: "/team", label: "Team", icon: Users },
   { to: "/calendar", label: "Calendar", icon: Calendar },
   { to: "/timeline", label: "Timeline", icon: GanttChart },
