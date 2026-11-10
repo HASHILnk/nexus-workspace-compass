@@ -359,6 +359,61 @@ export type Database = {
           },
         ];
       };
+      beacon_connection: {
+        Row: {
+          id: boolean;
+          endpoint: string;
+          encrypted_key: string;
+          allowed_user_ids: string[];
+          updated_by: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: boolean;
+          endpoint: string;
+          encrypted_key: string;
+          allowed_user_ids?: string[];
+          updated_by: string;
+          updated_at?: string;
+        };
+        Update: {
+          endpoint?: string;
+          encrypted_key?: string;
+          allowed_user_ids?: string[];
+          updated_by?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      beacon_connections: {
+        Row: {
+          id: string;
+          project_name: string;
+          endpoint: string;
+          encrypted_key: string;
+          allowed_user_ids: string[];
+          updated_by: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_name: string;
+          endpoint: string;
+          encrypted_key: string;
+          allowed_user_ids?: string[];
+          updated_by: string;
+          updated_at?: string;
+        };
+        Update: {
+          project_name?: string;
+          endpoint?: string;
+          encrypted_key?: string;
+          allowed_user_ids?: string[];
+          updated_by?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       user_roles: {
         Row: {
           id: string;
