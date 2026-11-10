@@ -11,6 +11,10 @@ pipeline {
         skipDefaultCheckout(true)
     }
 
+    triggers {
+        githubPush()
+    }
+
     stages {
         stage('Checkout') {
             steps {
