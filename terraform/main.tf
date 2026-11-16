@@ -6,7 +6,7 @@ locals {
   log_analytics_name = "workspace-rgnexusdevBQOx"
 }
 
-# Resource Group
+# 1. Resource Group
 module "resource_group" {
   source = "./modules/resource-group"
 
@@ -22,115 +22,80 @@ moved {
   to   = module.resource_group.azurerm_resource_group.rg
 }
 
-# Azure Container Registry
-resource "azurerm_container_registry" "acr" {
-  name                = local.acr_name
+# 2. Azure Container Registry
+module "container_registry" {
+  source = "./modules/container-registry"
+
+  acr_name            = local.acr_name
   resource_group_name = module.resource_group.resource_group_name
   location            = module.resource_group.resource_group_location
-  sku                 = "Basic"
-  admin_enabled       = false
+
+  sku          = "Basic"
+  environment  = var.environment
+  owner        = var.owner
+  project_name = var.project_name
 }
 
-# Log Analytics Workspace for Container Apps Environment
-resource "azurerm_log_analytics_workspace" "logs" {
-  name                = local.log_analytics_name
-  location            = module.resource_group.resource_group_location
+moved {
+  from = azurerm_container_registry.acr
+  to   = module.container_registry.azurerm_container_registry.acr
+}
+
+# 3. Log Analytics Workspace
+module "log_analytics" {
+  source = "./modules/log-analytics"
+
+  workspace_name      = local.log_analytics_name
   resource_group_name = module.resource_group.resource_group_name
+  location            = module.resource_group.resource_group_location
   sku                 = "PerGB2018"
   retention_in_days   = 30
+
+  environment  = var.environment
+  owner        = var.owner
+  project_name = var.project_name
 }
 
-# Container Apps Managed Environment
-resource "azurerm_container_app_environment" "env" {
-  name                       = local.environment_name
-  location                   = module.resource_group.resource_group_location
+moved {
+  from = azurerm_log_analytics_workspace.logs
+  to   = module.log_analytics.azurerm_log_analytics_workspace.logs
+}
+
+# 4. Container Apps Environment
+module "container_app_environment" {
+  source = "./modules/container-app-environment"
+
+  environment_name           = local.environment_name
   resource_group_name        = module.resource_group.resource_group_name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
+  location                   = module.resource_group.resource_group_location
+  log_analytics_workspace_id = module.log_analytics.id
 
-  # Azure API does not return log_analytics_workspace_id on read/import.
-  lifecycle {
-    ignore_changes = [log_analytics_workspace_id]
-  }
+  environment  = var.environment
+  owner        = var.owner
+  project_name = var.project_name
 }
 
-# Azure Container App
-resource "azurerm_container_app" "app" {
-  name                         = local.container_app_name
-  container_app_environment_id = azurerm_container_app_environment.env.id
+moved {
+  from = azurerm_container_app_environment.env
+  to   = module.container_app_environment.azurerm_container_app_environment.env
+}
+
+# 5. Container App
+module "container_app" {
+  source = "./modules/container-app"
+
+  container_app_name           = local.container_app_name
+  container_app_environment_id = module.container_app_environment.id
   resource_group_name          = module.resource_group.resource_group_name
-  revision_mode                = "Multiple"
-  workload_profile_name        = "Consumption"
+  registry_server              = module.container_registry.login_server
+  image                        = "${module.container_registry.login_server}/nexus:BUILD_TAG"
 
-  identity {
-    type = "SystemAssigned"
-  }
-
-  template {
-    container {
-      name   = "nexus-app"
-      image  = "${azurerm_container_registry.acr.login_server}/nexus:BUILD_TAG"
-      cpu    = 0.5
-      memory = "1Gi"
-
-      env {
-        name        = "SUPABASE_URL"
-        secret_name = "supabase-url"
-      }
-
-      env {
-        name        = "SUPABASE_PUBLISHABLE_KEY"
-        secret_name = "supabase-publishable-key"
-      }
-
-      env {
-        name  = "HOST"
-        value = "0.0.0.0"
-      }
-
-      env {
-        name  = "PORT"
-        value = "3000"
-      }
-
-      env {
-        name  = "NODE_ENV"
-        value = "production"
-      }
-    }
-
-    min_replicas = 0
-    max_replicas = 10
-  }
-
-  ingress {
-    external_enabled = true
-    target_port      = 3000
-    transport        = "auto"
-
-    traffic_weight {
-      percentage      = 100
-      latest_revision = true
-    }
-  }
-
-  registry {
-    server   = azurerm_container_registry.acr.login_server
-    identity = "system"
-  }
-
-  # Secret values are not returned by Azure on import; keep existing secrets untouched.
-  secret {
-    name  = "supabase-url"
-    value = "managed-in-azure"
-  }
-
-  secret {
-    name  = "supabase-publishable-key"
-    value = "managed-in-azure"
-  }
-
-  lifecycle {
-    ignore_changes = [secret]
-  }
+  environment  = var.environment
+  owner        = var.owner
+  project_name = var.project_name
 }
 
+moved {
+  from = azurerm_container_app.app
+  to   = module.container_app.azurerm_container_app.app
+}
